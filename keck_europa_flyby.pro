@@ -19,7 +19,7 @@ FUNCTION med_filter, X, P ; Sigma filter in 1-dimension, if an array differs fro
   x_out[replace_pixels] = med[replace_pixels]
   return, x_out
 end
-; testing to see if github is working
+
 PRO Keck_Europa_Flyby, part = part, dir = dir
 
   case dir of
@@ -157,7 +157,8 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
     SXADDPAR, Header, 'BZERO', 0.0
     MWRFITS, rotate(transpose(Star),7), Dir+'\Processed\Star.Trace.fits', header, /create, /silent
 
-    ;---------------Reduce Europa frames --------------------------------------------
+; -------------------------------------------------------  Reduce Europa frames ----------------------------------------------------
+
 ;    READCOL,'D:\DATA\___Calibration___\Carl_centrifugal_equator.txt', torus_deg, torus_lat_out, skipline = 1, /Silent
     Europa_array    = fltarr(2139, 4096, n_elements(Europa_frames))
     ET_array        = dblarr(N_elements(Europa_frames))
@@ -175,7 +176,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
       Europa_array[*,*,i] = Europa_array[*,*,i] - bias
       Europa_array[*,*,i] = Europa_array[*,*,i] / flat & PRINT, 'Do not apply this flat, it needs spectral *and* spatial normalization to unity'
       Europa_array[*,*,i] = Europa_array[*,*,i] / float(Sxpar(header, 'EXPTIME')) ; normalize to 1 second expsosure time
-
+      
       ; find the instantaneous Earth-Europa Doppler Shift
       cspice_UTC2ET, sxpar(header, 'DATE_BEG'), ET
       ET_mid_exposure = ET + float(sxpar(header, 'EXPTIME'))/2.
@@ -207,6 +208,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
       write_file = rotate(transpose(reform(Europa_array[*,*,i])),7)
       SXADDPAR, Header, 'BZERO', 0.0
       MWRFITS, write_file, Dir+'\Processed' + new_filename + '.Cleaned.fits', header, /create, /silent
+      
     endfor
     Europa_Airglow_params = create_struct( 'torus_lat', torus_lat_array, 'ET', ET_array, 'ExpTime', exptime_array, Europa_Airglow_params )
     print, 'XD Angle:', Sxpar(header, 'XDANGL'), ' Echelle Angle:', Sxpar(header, 'ECHANGL')
