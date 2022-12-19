@@ -1,3 +1,29 @@
+;+
+; NAME:
+;       Keck_Europa_Flyby
+; PURPOSE:
+;       Analyze Keck HIRES data od Europa's Na and K emissions during the Sept 28, 2022 Juno Flyby
+; EXPLANATION:
+;       The output X and Y coordinates are scaled to be between
+;       -90 and +90 to go from equator to pole to equator. Output map points 
+;       can be centered on the north pole or south pole.
+;
+; CALLING SEQUENCE:
+;       Keck_Europa_Flyby, part = part
+;
+; INPUTS:
+;       Part = 0 Bias subtration, cosmic ray
+;              1 Flatten, extract orders and get the wavelength solutions
+;
+; OUTPUTS:
+;
+; KEYWORDS:
+;
+; REVISION HISTORY:
+;       Skeleton adaptation from prior HIRES code C. Schmidt & E. Lovett December 2022
+;-
+
+
 FUNCTION MX_plus_B, X, P
   ; multiply P[0] and offset P[1]
   return, P[0]*X+ P[1]
@@ -20,43 +46,39 @@ FUNCTION med_filter, X, P ; Sigma filter in 1-dimension, if an array differs fro
   return, x_out
 end
 
-PRO Keck_Europa_Flyby, part = part, dir = dir
+PRO Keck_Europa_Flyby, part = part
 
-  case dir of
-    'C:\DATA\HIRES_20220928': begin
-      ;Europa           = '1003517' ; aka C/2017 K2 (PANSTARRS)
-      biases          = string(indgen(10)+4, format='(I4.4)')
-      Flats           = string(indgen(10)+15, format='(I4.4)')
-      Lamps           = string(indgen(5)+25, format='(I4.4)')
-      Star_Frames     = string(indgen(2)+78, format='(I4.4)')
-      Europa_frames   = string(indgen(38)+127, format='(I4.4)')
-      Jupiter_frames  = string(116, format='(I4.4)')                 ; Jupiter disk center post eclipse
-    end
-  endcase
+dir = 'C:\DATA\HIRES_20220928'
+
+biases          = string(indgen(10)+4, format='(I4.4)')
+Flats           = string(indgen(10)+15, format='(I4.4)')
+Lamps           = string(indgen(5)+25, format='(I4.4)')
+Star_Frames     = string(indgen(2)+78, format='(I4.4)')
+Europa_frames   = string(indgen(38)+127, format='(I4.4)')
+Jupiter_frames  = string(116, format='(I4.4)')                 ; Jupiter disk center post eclipse
+
 
   ;-------------------------------------------Load SPICE Data-----------------------------------------------------
 
   ; Clean any lingering kernels out of memory here:
-  cspice_ktotal, 'all', count
-  Print, 'Deleting ', strtrim(string(count),2), ' old SPICE kernels from memory'
-  i=0
-  while i lt count do begin
-    cspice_kdata, 0, 'all', file, type, source, handle, found
-    cspice_unload, file
-    i = i + 1
-  endwhile
+    cspice_ktotal, 'all', count
+    Print, 'Deleting ', strtrim(string(count),2), ' old SPICE kernels from memory'
+    i=0
+    while i lt count do begin
+      cspice_kdata, 0, 'all', file, type, source, handle, found
+      cspice_unload, file
+      i = i + 1
+    endwhile
 
   ; Load New Kernels
-  CSPICE_FURNSH, STRCOMPRESS('C:\SPICE\generic_kernels\lsk\naif0010.tls')         ; leap seconds kernel
-  CSPICE_FURNSH, STRCOMPRESS('C:\SPICE\generic_kernels\pck\pck00010.tpc')         ; Planet rotational states
-  CSPICE_FURNSH, STRCOMPRESS('C:\SPICE\Jupiter_System\jup310.bsp')
-  CSPICE_FURNSH, STRCOMPRESS('C:\SPICE\generic_kernels\spk\planets\de421.bsp')    ; SPK (ephemeris kernel) for planets
-  CSPICE_FURNSH, STRCOMPRESS('C:\SPICE\generic_kernels\spk\satellites\sat319.bsp'); SPK (ephemeris kernel) for satellites
-;  CSPICE_FURNSH, STRCOMPRESS('C:\SPICE\Small_Bodies\2017 K2.bsp')                 ; SPK (ephemeris kernel) for 2017 K2 PANSTARRS
-;  CSPICE_FURNSH, STRCOMPRESS('C:\SPICE\Small_Bodies\Didymos.bsp')                 ; SPK (ephemeris kernel) for Didymos
+    CSPICE_FURNSH, STRCOMPRESS('C:\SPICE\generic_kernels\lsk\naif0010.tls')         ; leap seconds kernel
+    CSPICE_FURNSH, STRCOMPRESS('C:\SPICE\generic_kernels\pck\pck00010.tpc')         ; Planet rotational states
+    CSPICE_FURNSH, STRCOMPRESS('C:\SPICE\Jupiter_System\jup310.bsp')
+    CSPICE_FURNSH, STRCOMPRESS('C:\SPICE\generic_kernels\spk\planets\de421.bsp')    ; SPK (ephemeris kernel) for planets
+    CSPICE_FURNSH, STRCOMPRESS('C:\SPICE\generic_kernels\spk\satellites\sat319.bsp'); SPK (ephemeris kernel) for satellites
 
-  cspice_ktotal, 'all', count
-  Print, 'Loaded ', strtrim(string(count),2), ' new Spice kernels'
+    cspice_ktotal, 'all', count
+    Print, 'Loaded ', strtrim(string(count),2), ' new Spice kernels'
 
   ;-------------------------------------------Load Constants-----------------------------------------------------
   ; Define Rest wavelengths
@@ -202,8 +224,6 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
       ;SXADDPAR, header, 'Torus_Lat', torus_lat_array[i],          ' Torus Latitude WRT the Europa JRM09 Dipole Approx'
       SXADDPAR, header, 'Europa_DOP',  Europa_wrt_Earth_Dopplershift, ' Europa-Earth V_radial in km/s (mid exposure)'
       SXADDPAR, header, 'UTC_Mid', utcstr,                        ' UTC time (mid-exposure)'
-      ;SXADDPAR, Europa_header, 'T_PSHADO', (ET_mid_exposure-PenUmbra_ET) / 60., 'Minutes since Penumbral ingress'
-      ;SXADDPAR, Europa_header, 'T_USHADO', (ET_mid_exposure-Umbra_ET) / 60., 'Minutes since Umbral ingress'    '
 
       write_file = rotate(transpose(reform(Europa_array[*,*,i])),7)
       SXADDPAR, Header, 'BZERO', 0.0
