@@ -29,7 +29,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
       Flats           = string(indgen(10)+15, format='(I4.4)')
       Lamps           = string(indgen(5)+25, format='(I4.4)')
       Star_Frames     = string(indgen(2)+78, format='(I4.4)')
-      Europa_frames   = string(indgen(38)+127, format='(I4.4)')
+      Europa_frames   = string(indgen(28)+168, format='(I4.4)')      ;this is for K and Na data; for just Na, use string(indgen(38)+127, format='(I4.4)')
       Jupiter_frames  = string(116, format='(I4.4)')                 ; Jupiter disk center post eclipse
     end
   endcase
@@ -362,7 +362,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
           flat_order_straight[i,*] = interpolate(flat[i,*], order.low_bound + findgen(Aperture_width) - Aperture_width/2. + POLY( i, coeffs))
           Europa_order_straight[i,*] = interpolate(Europa[i,*], order.low_bound + findgen(Aperture_width) - Aperture_width/2. + POLY( i, coeffs))
         endfor
-
+        
         Flat_aperture = Flat_order_straight[*, order.aperture_limit[0]:order.aperture_limit[1]]
         ;nomalize_with = mean(Flat_aperture, dim = 2, /NAN)
         coeffs = poly_fit(findgen(s[0]), mean(Flat_aperture, dim = 2, /NAN), 3)
@@ -451,10 +451,10 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
           order.name eq 'order_53': statsec = '[0:2620,*]'
           else: junk = temporary(statsec)
         endcase
-
-        siglip = 8.5
-        la_cosmic, Dir+'\Processed\Cosmic Rays\CR_' + Frames[frame],outsuff = "CR", sigclip = sigclip, statsec = statsec
-        CR_result_1 = mrdfits(Dir+'\Processed\Cosmic Rays\CR_hires'+strcompress(Europa_frames[frame], /rem)+'.CleanedCR.fits', 0, junk_header)
+        gain = 0.0
+        sigclip = 8.5
+        la_cosmic, Dir+'\Processed\Cosmic Rays\CR_' + Frames[frame],outsuff = "CR", sigclip = sigclip, statsec = statsec, gain = gain
+        CR_result_1 = mrdfits(Dir+'\Processed\Cosmic Rays\CR_hires'+strcompress(Europa_frames[frame], /rem)+'.Cleaned.fits', 0, junk_header)
         CR_Mask     = mrdfits(Dir+'\Processed\Cosmic Rays\CR_hires'+strcompress(Europa_frames[frame], /rem)+'.Cleaned-mask.fits', 0, junk_header)
 
 ; the LA Cosmic CR removal algorithm can sometimes introduce negative pixels, particularly at the edge, fix those
@@ -468,7 +468,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         bad_pixel_list[Good_Pixel_Indicies] = 1
         fixpix, CR_result_1, bad_pixel_list, CR_result_2     ; replace Bad_Pixel_Indicies with avg of neighbor pixels
         cube[*,*,frame] = CR_result_2                        ; SAVE this order and frame
-        CR_mask[Bad_Pixel_Indicies] = 1b
+        ;CR_mask[Bad_Pixel_Indicies] = 1b
 
         ; Inspect Cosmic Ray Results
         window, 0, xs = 3400, ys = Aperture_width, title = 'Bias and Flat Corrected Frame: '+ Europa_frames[frame]
@@ -477,11 +477,11 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         tv, bytscl(CR_result_1, 0.5*mean(aperture), 1.5*mean(aperture))
         window, 8, xs = 3400, ys = Aperture_width, ypos = 200, title = 'Hot/Cold Pixel Filtered Cosmic Ray Corrected Frame '+ Europa_frames[frame]
         tv, bytscl(CR_result_2, 0.5*mean(aperture), 1.5*mean(aperture))
-        window, 12, xs = 3400, ys = Aperture_width, ypos = 300, title = 'Cosmic Ray Mask'
-        tv, bytscl(CR_mask, 0, 1)
+;        window, 12, xs = 3400, ys = Aperture_width, ypos = 300, title = 'Cosmic Ray Mask'
+;        tv, bytscl(CR_mask, 0, 1)
         ;stop
       endfor ; frame (Europa frames)
-
+      
       ; Now do the same process for Jupiter
       Frames = 'hires'+strcompress(Jupiter_frames, /rem)+'.Cleaned.fits'
       for frame = 0, n_elements(Frames)-1 do begin
@@ -846,7 +846,7 @@ stop
       junk  =  mrdfits(frames[frame], 0, header, /fscale, /silent)
 
       filter  = strcompress(sxpar(header, 'FIL2NAME'), /remove_all)
-      if filter ne '5893/30' then continue
+      if filter ne 'clear' then continue
       date    = strcompress(sxpar(header, 'DATE'),  /remove_all)
       keckra  = ten(strcompress(sxpar(header, 'RA'),  /remove_all) )
       keckdec = ten(strcompress(sxpar(header, 'DEC'),  /remove_all))
@@ -902,6 +902,7 @@ stop
       diffra   = predra - keckra
       diffdec  = preddec - keckdec
       differ   = ((cos(preddec * !pi / 180.)*diffra)^2 + diffdec^2)^0.5  * 3600.   ; distance from europa's disk in arcseconds
+      print, frames[frame], differ
       if differ gt 20 then continue
 
       dif_radii = differ / halfang_arc                                             ; converts distance to europa radii
@@ -909,7 +910,7 @@ stop
       distances = [distances, dif_radii]
 
       ets = [ets, et]
-      amass = [amass, strcompress(sxpar(header, 'AIRMASS'),/remove_all)]
+      ;amass = [amass, strcompress(sxpar(header, 'AIRMASS'),/remove_all)]
 
       ;    if frames[frame] eq dir+'hires0127.fits' then stop
       ;    if frames[frame] eq dir+'hires0136.fits' then stop
@@ -935,7 +936,7 @@ stop
     shouldbe = [0,0,0,0,0,0,10,10,20,20,0,0,0,0,0,10,10,20,20,0,0,0,0,0,10,10,$
       20,20,10,10,20,20,0,0,0,0,0,0]                                             ; this is an array of what the pos. should be from europa's disk
 
-    differences = (shouldbe - distances)
+;    differences = (shouldbe - distances)
     ;  window, 1, xs=900, ys=900
     ;  cgplot, ets, amass, yr=[min(amass),max(amass)], xr=[min(ets),max(ets)], $
     ;    title='Airmass Over the Night of 9/29/2022', xtitle='Ephemeris Time [s]', ytitle='Airmass', color='red', psym=-46, symcolor= 'crimson', symsize=2, linestyle=0
@@ -945,14 +946,14 @@ stop
     ;    title='Offness', xtitle='Ephemeris Time [s]', ytitle='Should-Be - Actual Distance', color='blue', psym=-46, symcolor= 'sky blue', symsize=2, linestyle=0
     ;  cgplot, /overplot, ets, fltarr(N_elements(ets)), linestyle=2, symthick=2
 
-    window, 1, xs=900, ys=900
-    cgplot, string(indgen(n_elements(europa_frames))+127, format='(I4.4)'), amass, yr=[min(amass),max(amass)], xr=[127,164], $
-      title='Airmass Over the Night of 9/29/2022', xtitle='File #', ytitle='Airmass', color='red', psym=-46, symcolor= 'crimson', symsize=2, linestyle=0
+;    window, 1, xs=900, ys=900
+;    cgplot, string(indgen(n_elements(europa_frames))+127, format='(I4.4)'), amass, yr=[min(amass),max(amass)], xr=[127,164], $
+;      title='Airmass Over the Night of 9/29/2022', xtitle='File #', ytitle='Airmass', color='red', psym=-46, symcolor= 'crimson', symsize=2, linestyle=0
 
-    window, 2, xs=900, ys=900
-    cgplot, string(indgen(n_elements(europa_frames))+127, format='(I4.4)'), differences, yr=[min(differences),max(differences)], xr=[127,164], $
-      title='Offness', xtitle='File #', ytitle='Should-Be - Actual Distance', color='blue', psym=-46, symcolor= 'sky blue', symsize=2, linestyle=0
-    cgplot, string(indgen(n_elements(europa_frames))+127, format='(I4.4)'), fltarr(38), linestyle=2, symthick=2, /overplot
+;    window, 2, xs=900, ys=900
+;    cgplot, string(indgen(n_elements(europa_frames))+127, format='(I4.4)'), differences, yr=[min(differences),max(differences)], xr=[127,164], $
+;      title='Offness', xtitle='File #', ytitle='Should-Be - Actual Distance', color='blue', psym=-46, symcolor= 'sky blue', symsize=2, linestyle=0
+;    cgplot, string(indgen(n_elements(europa_frames))+127, format='(I4.4)'), fltarr(38), linestyle=2, symthick=2, /overplot
 
 
     stop

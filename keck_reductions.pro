@@ -54,12 +54,13 @@ pro keck_reductions, part=part
     
     for i = 0, n_elements(filenames)-1 do begin
       filename = strcompress(filenames[i])
+      
       Gain = 1.
       Print, filenames[I], (sxpar(header, 'EXPOSURE'))
       new_filename = STRMID(filename, strlen(directory))
       new_filename = STRMID(new_filename, 0, strpos(new_filename,'.fits'))
       
-     ; la_cosmic, directory + new_filename + '.fits', outsuff = "CR", sigclip = 6.0, statsec = statsec, readn=RDnoise, gain=Gain
+      la_cosmic, directory + new_filename + '.fits', outsuff = "CR", sigclip = 8.0, statsec = statsec, readn=RDnoise, gain=Gain
       
       BSCR = MRDFITS(directory+new_filename+'CR.fits', 0, header, /Dscale, /silent )
       Dummy = BSCR
@@ -93,11 +94,11 @@ pro keck_reductions, part=part
   ENDIF
 
 
-  ; ============================================ STRAIGHTENING IMAGE IN Y AND RECTIFYING IN X ===================================================
+; ============================================ STRAIGHTENING IMAGE IN Y AND RECTIFYING IN X ===================================================
 
   if part eq 1 then begin
 
-    ; --------------------------------------------------------- Straightening in Y ----------------------------------------------------------------
+; --------------------------------------------------------- Straightening in Y ----------------------------------------------------------------
 
     files     = FILE_SEARCH(directory+'\Cosmic Rays\', "*FF.fits", count=n_Files)
     newimg    = fltarr(s_coords[1] - s_coords[0] + 1, s_coords[3] - s_coords[2] + 1)
