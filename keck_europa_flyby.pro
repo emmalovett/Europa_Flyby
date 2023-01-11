@@ -29,7 +29,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
       Flats           = string(indgen(10)+15, format='(I4.4)')
       Lamps           = string(indgen(5)+25, format='(I4.4)')
       Star_Frames     = string(indgen(2)+78, format='(I4.4)')
-      Europa_frames   = string(indgen(28)+168, format='(I4.4)')      ;this is for K and Na data; for just Na, use string(indgen(38)+127, format='(I4.4)')
+      Europa_frames   = string(indgen(31)+165, format='(I4.4)')      ;this is for K and Na data; for just Na, use string(indgen(38)+127, format='(I4.4)')
       Jupiter_frames  = string(116, format='(I4.4)')                 ; Jupiter disk center post eclipse
     end
   endcase
@@ -253,7 +253,11 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
   orders   = [ order_38, order_39, order_40, order_41, order_42, order_43, order_44, order_45, order_46, $
     order_47, order_48, order_49, order_50, order_51, order_52, order_53, order_54, order_55, order_56, order_57, order_58,$
     order_59, order_60, order_61, order_62, order_63, order_64, order_65, order_66, order_67, order_68, order_69, order_70]
-
+  
+  ;ONLY focus on one order...?hack
+  orders   = [order_46, order_56, order_60]
+  
+  
   ;x = findgen(22)+45
   ;y = orders.guess_coeffs[1]
   ;
@@ -467,7 +471,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         bad_pixel_list = intarr(s[0],s[1])
         bad_pixel_list[Good_Pixel_Indicies] = 1
         fixpix, CR_result_1, bad_pixel_list, CR_result_2     ; replace Bad_Pixel_Indicies with avg of neighbor pixels
-        cube[*,*,frame] = CR_result_2                        ; SAVE this order and frame
+        cube[*,*,frame] = CR_result_1                        ; SAVE this order and frame
         ;CR_mask[Bad_Pixel_Indicies] = 1b
 
         ; Inspect Cosmic Ray Results
@@ -534,18 +538,19 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
       endfor ; frames (Jupiter frame number)
 
       save, cube, Jupiter_cube, WL, filename = Dir+'\Processed\' + order.name + '.sav'
+      stop
     endfor ; h (order number)
     stop
   endif
 
 
-  ;restore, Dir+'\Processed\order_56.sav'
+  restore, Dir+'\Processed\order_56.sav'
 
 
   if part eq 1.5 then begin
 
     ; the g-value 
-      SOLAR_SPECTRUM_FILE = 'C:\IDL\Generic Model V2\read_write\Solar_Spectral_Irradiance\Kurucz\' + 'hybrid_reference_spectrum_c2021-03-04_with_unc.nc'
+      SOLAR_SPECTRUM_FILE = 'C:\IDL\Generic Model V3\read_write\' + 'hybrid_reference_spectrum_c2021-03-04_with_unc.nc'
       NCDF_LIST, SOLAR_SPECTRUM_FILE, /VARIABLES, /DIMENSIONS, /GATT, /VATT
   
       ID = NCDF_open(SOLAR_SPECTRUM_FILE)
@@ -614,7 +619,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
       VACTOAIR, WL_A, WL_A_Air      ; Vacuum to air wavelength conversion
       WL_A = temporary(WL_A_Air)
 
-      Jupiter_center_header = headfits('D:\DATA\Keck\Europa Na\'+Dir+'\Processed\hires'+strcompress(Jupiter_frames[0], /rem)+'.Cleaned.fits')
+      Jupiter_center_header = headfits(Dir+'\Processed\hires'+strcompress(Jupiter_frames[0], /rem)+'.Cleaned.fits')
       cspice_UTC2ET, sxpar(Jupiter_center_header, 'DATE-OBS') + ' '+ sxpar(Jupiter_center_header, 'UTC'), ET
       cspice_spkezr, 'Jupiter', ET, 'J2000', 'LT+S', 'Sun', Jupiter_Sun_State, ltime
       solar_distance = norm(Jupiter_Sun_State[0:2]) / 149597871.
@@ -660,9 +665,9 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
 
       loadct, 0
       orders_to_calibrate = ['order_60', 'order_46']
-   
+      
       FOR order = 0, N_elements(orders_to_calibrate) - 1 do begin
-        restore, 'D:\DATA\Keck\Europa Na\HIRES_20220928\Processed\' + orders_to_calibrate[order]+'.sav' 
+        restore, dir + '\Processed\' + orders_to_calibrate[order]+'.sav' 
    
         ; Determine the instrumental sensitivity from the expected versus measured flux at Jupiter Disk Center. This should be a smooth function
           expected_flux          = interpol(Rayleighs_per_angstrom, WL_A, WL)       ; move expected flux to the Jovian Doppler-shift, UNITS are R / A
@@ -694,66 +699,88 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
           
           Jupiter_cube = Jupiter_cube / _2D_sensetivity
           
-          for f = 0, N_elements(Europa_frames)-1 do begin
+          for f = 0, N_elements(Europa_frames)-4 do begin
             cube[*,*,f] = cube[*,*,f] / _2D_sensetivity ; convert to R / A units
             print, 'you neglected differential airmass when scaling the sensitivity calculation from Jupiter to Europa!'
           endfor
-  
       
           if order eq 1 then begin
       
               axis_format = {XTicklen:-.01, yticklen:-0.005 }
               
-              _10_RsubE_west_NS = 0.5*(REFORM(cube[0:1200,*,11]+cube[0:1200,*,12]))
-              _10_RsubE_east_NS = 0.5*(REFORM(cube[0:1200,*,15]+cube[0:1200,*,16]))
+              NS0__   = 0.5*(REFORM(cube[500:900,*,11]+cube[500:900,*,12]))
+              NS10_E  = 0.5*(REFORM(cube[500:900,*,18]+cube[500:900,*,19]))
+              NS20_E  = 0.5*(REFORM(cube[500:900,*,20]+cube[500:900,*,21]))
+              NS10_W  = 0.5*(REFORM(cube[500:900,*,14]+cube[500:900,*,15]))
+              NS20_W  = 0.5*(REFORM(cube[500:900,*,16]+cube[500:900,*,17]))
+              EW0__   = 0.5*(REFORM(cube[500:900,*,0 ]+cube[500:900,*,1 ]))
+              EW10_N  = 0.5*(REFORM(cube[500:900,*,3 ]+cube[500:900,*,4 ]))
+              EW20_N  = 0.5*(REFORM(cube[500:900,*,5 ]+cube[500:900,*,6 ]))
+              EW10_S  = 0.5*(REFORM(cube[500:900,*,7 ]+cube[500:900,*,8 ]))
+              EW20_S  = 0.5*(REFORM(cube[500:900,*,9 ]+cube[500:900,*,10]))
 
-                P = cglayout([1,2], ygap = 0., oxmargin = [12, .9], oymargin = [9, 5])
-                cgPS_Open, filename = 'C:\Users\schmidtc\Desktop\Proposals\NSF 2023\Europa\'+orders_to_calibrate[order]+'.eps', /ENCAPSULATED, xsize = 7.5, ysize = 5
-                !P.font=1
-                device, SET_FONT = 'Helvetica Bold', /TT_FONT
-                  cgplot, WL, mean(_10_RsubE_east_NS, dim=2), /xs, xr = [wl[0], wl[1200]], pos = p[*,0], xtickformat = '(A1)', $
-                    title='HIRES 2022-09-29 12:53 UT: 10 R!DEuropa!N Offset East, N-S Slit', ytitle = 'Rayleighs / ' + cgsymbol('Angstrom')
-                  
-                  cgimage, _10_RsubE_east_NS, /axes, xr = [wl[0], wl[1200]], pos = p[*,1], yr = [-(14.*.5/ang_radius), (14.*.5/ang_radius)]-.7, /noerase, $
-                    ytit = 'Europa Radii', xtitle = 'Angstroms', AXKEYWORDS = axis_format
-                cgps_Close       
+              P = cglayout([1,2]);, ygap = 0., oxmargin = [12, .9], oymargin = [9, 5])
+              cgPS_Open, filename = 'C:\Users\elovett\EuropaResearch\Europa_Flyby\'+orders_to_calibrate[order]+'.eps', /ENCAPSULATED, xsize = 7.5, ysize = 5
+              !P.font=1
+              device, SET_FONT = 'Helvetica Bold', /TT_FONT
+                cgplot, WL, total(NS0__, 2), /xs, xr = [wl[0], wl[1200]], pos = p[*,0], xtickformat = '(A1)', $
+                  title='HIRES 2022-09-29 12:53 UT: 10 R!DEuropa!N Offset East, N-S Slit', ytitle = 'Rayleighs / ' + cgsymbol('Angstrom')
+                
+                cgimage, NS0__, /axes, xr = [wl[0], wl[1200]], pos = p[*,1], yr = [-(14.*.5/ang_radius), (14.*.5/ang_radius)]-.7, /noerase, $
+                  ytit = 'Europa Radii', xtitle = 'Angstroms', AXKEYWORDS = axis_format
+              cgps_Close       
           endif 
         
         angstrom_per_pixel = mean(deriv(WL))
 
-        if order eq 0 then begin
+        if order eq 0 then begin ;     Na order_60 ?
           
-          _10_RsubE_west_NS = 0.5*(REFORM(cube[500:900,*,11]+cube[500:900,*,12]))
-          _10_RsubE_east_NS = 0.5*(REFORM(cube[500:900,*,15]+cube[500:900,*,16]))
+          NS0__   = 0.5*(REFORM(cube[500:900,*,11]+cube[500:900,*,12]))
+          NS10_E  = 0.5*(REFORM(cube[500:900,*,18]+cube[500:900,*,19]))
+          NS20_E  = 0.5*(REFORM(cube[500:900,*,20]+cube[500:900,*,21]))
+          NS10_W  = 0.5*(REFORM(cube[500:900,*,14]+cube[500:900,*,15]))
+          NS20_W  = 0.5*(REFORM(cube[500:900,*,16]+cube[500:900,*,17]))
+          EW0__   = 0.5*(REFORM(cube[500:900,*,0 ]+cube[500:900,*,1 ]))
+          EW10_N  = 0.5*(REFORM(cube[500:900,*,3 ]+cube[500:900,*,4 ]))
+          EW20_N  = 0.5*(REFORM(cube[500:900,*,5 ]+cube[500:900,*,6 ]))
+          EW10_S  = 0.5*(REFORM(cube[500:900,*,7 ]+cube[500:900,*,8 ]))
+          EW20_S  = 0.5*(REFORM(cube[500:900,*,9 ]+cube[500:900,*,10]))
 
-          P = cglayout([2,2], ygap = 0., oxmargin = [14, 2], oymargin = [9, 5], xgap = 0.)
+          P = cglayout([2,2], ygap = 0., oxmargin = [14, 2], oymargin = [6,8], xgap = 0.)
           axis_format = {XTicklen:-.01, yticklen:-0.01 }
-          cgPS_Open, filename = 'C:\Users\schmidtc\Desktop\Proposals\NSF 2023\Europa\'+orders_to_calibrate[order]+'.eps', /ENCAPSULATED, xsize = 7.5, ysize = 5
+          cgPS_Open, filename = 'C:\Users\elovett\EuropaResearch\Europa_Flyby\'+orders_to_calibrate[order]+'.eps', /ENCAPSULATED, xsize = 10., ysize = 5
             !P.font=1
             device, SET_FONT = 'Helvetica Bold', /TT_FONT
             
-            title = '                                       HIRES 2022-09-29 12:53 UT: 10 R!DEuropa!N Offset East, North-South Slit'
-            cgplot, wl[500:900], mean(_10_RsubE_east_NS, dim=2), /xs, xr = [wl[500], wl[900]], pos = p[*,0], xtickformat = '(A1)', $
+            
+            title = 'HIRES 2022-09-29 12:53 UT: 10 R!DEuropa!N Offset East, North-South Slit'
+            
+            cgplot, wl[500:900], total(NS0__, 2), /xs, xr = [wl[500], wl[900]], pos = p[*,0], xtickformat = '(A1)', $
               title=title, ytitle = 'Rayleighs / ' + cgsymbol('Angstrom')
   
-            cgimage, _10_RsubE_east_NS, /axes, xr = [wl[500], wl[900]], pos = p[*,2], yr = [-(14.*.5/ang_radius), (14.*.5/ang_radius)]+.4, /noerase, $
+            cgimage, NS0__, /axes, xr = [wl[500], wl[900]], pos = p[*,2], yr = [-(14.*.5/ang_radius), (14.*.5/ang_radius)]+.4, /noerase, $
               ytit = 'Europa Radii', xtitle = 'Angstroms', AXKEYWORDS = axis_format
             
             ;very rough calculations here
             ind = min(abs(wl[500:900] - 5890.2),loc)
-            profile = mean(_10_RsubE_east_NS[loc-4:loc+4,*], dim=1)
+            profile = total(EW20_N[loc-4:loc+4,*], 1)
             
             column = profile*9.*angstrom_per_pixel * 1.5 * 10.e6/g_Na
-            column[-1] = column[-2];!values.F_NaN
+            column[-1] = column[-2]
+            
             cgplot, column/1.e10, findgen(38), title = 'Na Column Density', /ynozero, /noerase, pos = p[*,3], ys= 5, $
               xtitle = cgsymbol('times')+'10!U10!N atoms / cm!U2!N'
           
+; below, i'm trying to get units of rayleighs to match leblanc (2005) plots. first, i try to divide col. dens. by exp. time
+          
+          ;  cgplot, findgen(36), profile*angstrom_per_pixel * 1.5, title = 'East-West 20 R!DEuropa!N North', /ynozero, /noerase, ytitle = 'Rayleighs'
+          
+          ;  cgplot, findgen(36), total(EW10_N, 1)*angstrom_per_pixel*36., /xs, ytitle = 'Rayleighs', xtitle='pixels'
+          
           cgps_Close
         endif
-        
+        stop
     endfor
-    
-
     
     stop
 ;    profile = total(_10_RsubE_east_NS[127:134,*], 1)
@@ -896,14 +923,14 @@ stop
       cspice_spkpos, target, et, coframe, abcorr, observer, Europa_Earth_vector, ltime
       cspice_recrad, (Europa_Earth_vector - obs_J2000), Europa_distance_WRT_obs, predra, preddec
 
-      predra = ten(predra * !radeg) / 15.
+      predra = ten(predra * !radeg ) / 15.
       preddec= ten(preddec * !radeg)
-
+      
       diffra   = predra - keckra
       diffdec  = preddec - keckdec
       differ   = ((cos(preddec * !pi / 180.)*diffra)^2 + diffdec^2)^0.5  * 3600.   ; distance from europa's disk in arcseconds
-      print, frames[frame], differ
-      if differ gt 20 then continue
+      ;print, frames[frame], differ
+      ;if differ gt 20 then continue
 
       dif_radii = differ / halfang_arc                                             ; converts distance to europa radii
 
@@ -932,9 +959,6 @@ stop
       ;print, files[file], date, dif_radii
 
     endfor ;files
-
-    shouldbe = [0,0,0,0,0,0,10,10,20,20,0,0,0,0,0,10,10,20,20,0,0,0,0,0,10,10,$
-      20,20,10,10,20,20,0,0,0,0,0,0]                                             ; this is an array of what the pos. should be from europa's disk
 
 ;    differences = (shouldbe - distances)
     ;  window, 1, xs=900, ys=900
