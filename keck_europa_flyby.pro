@@ -20,6 +20,18 @@ FUNCTION med_filter, X, P ; Sigma filter in 1-dimension, if an array differs fro
   return, x_out
 end
 
+FUNCTION match_scattered_sunlight, p, x=x, y=y, err=err, fit=fit
+  common sunlight_fit_common, fitindices
+
+  fit = P[0]*GAUSS_SMOOTH(x,P[2],/EDGE_TRUNCATE) + P[1]
+
+  return, abs(y - fit)/err
+end
+
+FUNCTION scale_fit_sunlight, p, x
+  return, P[0]*GAUSS_SMOOTH(x,P[2],/EDGE_TRUNCATE) + P[1]
+end
+
 PRO Keck_Europa_Flyby, part = part, dir = dir
 
   case dir of
@@ -254,7 +266,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
     order_47, order_48, order_49, order_50, order_51, order_52, order_53, order_54, order_55, order_56, order_57, order_58,$
     order_59, order_60, order_61, order_62, order_63, order_64, order_65, order_66, order_67, order_68, order_69, order_70]
   
-  ;ONLY focus on one order...?hack
+  ;ONLY focus on Na and K orders...?hack
   orders   = [order_46, order_56, order_60]
   
   
@@ -628,7 +640,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
     ; Multiply incident solar irradiance x spectral albedo to determine the theoreitcal brightness of Jupiter at disk center
       Albedo = INTERPOL(Karkoschka_Albedo, Karkoschka_WL, WL_A)
       Rayleighs_per_angstrom = 4.*flux_at_jupiter*albedo / 1.e6
-      if keyword_set(debug) then window, Title = 'Instantaneous Rayleighs per Angstrom: Center of Jupiter''s Disk'
+      if keyword_set(debug) then window, 5, Title = 'Instantaneous Rayleighs per Angstrom: Center of Jupiter''s Disk'
       if keyword_set(debug) then plot, WL_A, Rayleighs_per_angstrom, xr = [5885, 5900], charsize = 2 ;compare to 5.5 MR per angstrom by Brown & Schneider, 1981
 
 
@@ -655,8 +667,6 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         
 
       ; ----------------------Flux Calibrate Using Distance and Absolute Spectral Reflectivity of Jupiter---------------------------
-
-        
 
         ; D3 smooth_by = 3.6
         ; C3 smooth_by = 2.1
@@ -691,6 +701,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
           fit_Sensitivity      = poly(WL, sens_coeffs)
           
           ; inspect 
+          window, 6, xs=1024, ys=1024
             cgplot, WL, sensitivity, /xs, ytitle = '(DN / S) / (R / A)', xtitle = 'angstroms', title = 'measured (black) vs fit (red) sensitivity'
             cgplot, WL, fit_Sensitivity, color = 'red', /overplot
           
@@ -703,21 +714,122 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
             cube[*,*,f] = cube[*,*,f] / _2D_sensetivity ; convert to R / A units
             print, 'you neglected differential airmass when scaling the sensitivity calculation from Jupiter to Europa!'
           endfor
+          
+          
+;          SUNLIGHT SUBTRACTION. I'm using Europa's on-disk observations as sunlight spectrum by assuming it's perfectly ⋆｡˚ ☁︎ ˚shiny｡⋆｡˚☽˚｡⋆ 
+          
+          
+          NS0__   = 0.5*(REFORM(cube[500:900,*,11]+cube[500:900,*,12]))             ; NS orientation on-disk
+          NS10_E  = 0.5*(REFORM(cube[500:900,*,18]+cube[500:900,*,19]))
+          NS20_E  = 0.5*(REFORM(cube[500:900,*,20]+cube[500:900,*,21]))
+          NS10_W  = 0.5*(REFORM(cube[500:900,*,14]+cube[500:900,*,15]))
+          NS20_W  = 0.5*(REFORM(cube[500:900,*,16]+cube[500:900,*,17]))
+          EW0__   = 0.5*(REFORM(cube[500:900,*,0 ]+cube[500:900,*,1 ]))             ; EW orientation on-disk
+          EW10_N  = 0.5*(REFORM(cube[500:900,*,3 ]+cube[500:900,*,4 ]))
+          EW20_N  = 0.5*(REFORM(cube[500:900,*,5 ]+cube[500:900,*,6 ]))
+          EW10_S  = 0.5*(REFORM(cube[500:900,*,7 ]+cube[500:900,*,8 ]))
+          EW20_S  = 0.5*(REFORM(cube[500:900,*,9 ]+cube[500:900,*,10]))
+          
+          s = size(NS0__)
+          
+          orientations = fltarr(s[1], s[2], 10)                                     ; there's definitely a better way to do this but whatever
+          orientations[*,*,0] = NS0__ 
+          orientations[*,*,1] = NS10_E
+          orientations[*,*,2] = NS20_E
+          orientations[*,*,3] = NS10_W
+          orientations[*,*,4] = NS20_W
+          orientations[*,*,5] = EW0__ 
+          orientations[*,*,6] = EW10_N
+          orientations[*,*,7] = EW20_N
+          orientations[*,*,8] = EW10_S
+          orientations[*,*,9] = EW20_S
+          
+          sunmax = []
+          newimg    = fltarr(s[1], s[2])
+          sunimg    = fltarr(s[1], s[2])
+          pixelsofsun = 15.
+          
+          
+; --------------------------------------------- Find the Dispersion & Sunlight vs Exosphere Indicies --------------------------------------
+          D2Cen               = 120
+          D1Cen               = 337
+          windowwidth         = 15.
+          spec_1D             = total(NS0__, 2, /Nan)
+          result              = mpfitpeak(findgen(windowwidth*2. + 1), spec_1D[D2cen - windowwidth:D2cen + windowwidth], a, STATUS = STATUS)
+          D2_Solar            = D2cen - windowwidth + a[1]
+          result              = mpfitpeak(findgen(windowwidth*2. + 1), spec_1D[D1cen - windowwidth:D1cen + windowwidth], a, STATUS = STATUS)
+          D1_Solar            = D1cen - windowwidth + a[1]
+          dispersion          = (5895.92424 - 5889.95095) / ( D1_Solar - D2_Solar ) ; A/pixel
+          Europa_D2_pixel     = float(D2_Solar / (dispersion*cspice_clight() / 5889.95095))  ; converted from km/s to pixel units
+          Europa_D1_pixel     = float(D1_Solar / (dispersion*cspice_clight() / 5895.92424))  ; converted from km/s to pixel units
+          
+          ;     Get the pixel indices where the spectrum consists of just scattered sunlight
+          fitindices = where( (abs(findgen(1024) - Europa_D1_pixel) gt 5) and $
+            (abs(findgen(1024) - Europa_D2_pixel) gt 5), /null)                         ; Excludes the sodium emission from Europa
+          
+          FOR i = 0, s[1] - 1 DO BEGIN
+            column = NS0__[i,*]
+            suncol = WHERE(column EQ MAX(column),count)                          ; Finds the sunlight spectrum in each column and puts that row into a 1D array
+            suncol = suncol[0]
+            sunmax = [sunmax, suncol[0]]
+          ENDFOR
+          
+          newpos      = n_elements(NS0__[0,*])/2                      ; Shifting the spectrum to match up with the mean sunlight spectrum location
+          sunlight    = NS0__[*, newpos - pixelsofsun : newpos + pixelsofsun]
+          TV, bytscl(sunlight)
+          sunlight_1d = TOTAL(sunlight, 2, /Nan)
+          
+          P_returned  = fltarr(4,s[2])                  ; Three coefficients + MPFIT's "Status"
+          P_guessed   = Fltarr(3,s[2])                  ; Initial Guess that we throw at MPFIT
+          
+          FOR orientation = 0, N_Elements(orientations[0,0,*]) DO BEGIN
+            FOR i = 0, s[2] - 1 DO BEGIN
+
+          ; generate an initial guess for multipliciative scaling
+              europa      = orientations[*,*,orientation]
+              row         = europa[*,i]
+              guess_scale = median(row[fitindices] / sunlight_1D[fitindices])
+              row_err     = sqrt(abs(row))
+              
+          ; Fit a y = A*Gauss_smooth(x,C) + B function to the spectrum, where x is the reference solar spectrum
+              p0 = [guess_scale, 0.0, 0.5]                                           ; Guess at initial coefficients
+              parinfo = replicate({value:0., fixed:0, limited:[0,0], limits:[0.,0.]}, n_elements(p0))
+              parinfo.value         = p0
+              ;parinfo[1].fixed      = 1
+              ;parinfo[2].fixed      = 1
+              parinfo[2].limited    = [1, 1]
+              parinfo[2].limits     = [0.0, 20.]
+
+              WEIGHTS = 1./(abs(findgen(s[1]) - Europa_D2_pixel))^.4 + 1./(abs(findgen(s[1]) - Europa_D1_pixel))^.4
+              
+              fa = {x:sunlight_1d[fitindices], y:row[fitindices], err:1./weights[fitindices]}
+              p = mpfit('match_scattered_sunlight', p0, PERROR = err_P, functargs=fa, status=status, parinfo=parinfo)
+              P_guessed[*,i]  = p0
+              p_returned[*,i] = [p, status]
+              scaled_sunlight = scale_fit_sunlight(P, sunlight_1d)             ; Puts it into y = A*shift(Gauss_smooth(x,D),C) + B form
+              
+              sunimg[*,i] = scaled_sunlight
+              sub         = guess_scale * sunlight_1d                          ; If you JUST want the multiplicative correction (no scattered sunlight accounted for w mpfit)
+              totsubtrd   = row  - scaled_sunlight                             ; Change back to row - sub to get just the multiplicative factor
+              newimg[*,i] = totsubtrd
+              window, 1, xs=401, ys=36
+              cgimage, newimg, minv=-500, maxv=500
+            ENDFOR ; each row of ONE orientation
+            wait, 5
+          ENDFOR ; each orientation
+          
+          STOP
+          
+          
+          
+          
+          
+          
       
           if order eq 1 then begin
       
               axis_format = {XTicklen:-.01, yticklen:-0.005 }
-              
-              NS0__   = 0.5*(REFORM(cube[500:900,*,11]+cube[500:900,*,12]))
-              NS10_E  = 0.5*(REFORM(cube[500:900,*,18]+cube[500:900,*,19]))
-              NS20_E  = 0.5*(REFORM(cube[500:900,*,20]+cube[500:900,*,21]))
-              NS10_W  = 0.5*(REFORM(cube[500:900,*,14]+cube[500:900,*,15]))
-              NS20_W  = 0.5*(REFORM(cube[500:900,*,16]+cube[500:900,*,17]))
-              EW0__   = 0.5*(REFORM(cube[500:900,*,0 ]+cube[500:900,*,1 ]))
-              EW10_N  = 0.5*(REFORM(cube[500:900,*,3 ]+cube[500:900,*,4 ]))
-              EW20_N  = 0.5*(REFORM(cube[500:900,*,5 ]+cube[500:900,*,6 ]))
-              EW10_S  = 0.5*(REFORM(cube[500:900,*,7 ]+cube[500:900,*,8 ]))
-              EW20_S  = 0.5*(REFORM(cube[500:900,*,9 ]+cube[500:900,*,10]))
+
 
               P = cglayout([1,2]);, ygap = 0., oxmargin = [12, .9], oymargin = [9, 5])
               cgPS_Open, filename = 'C:\Users\elovett\EuropaResearch\Europa_Flyby\'+orders_to_calibrate[order]+'.eps', /ENCAPSULATED, xsize = 7.5, ysize = 5
@@ -735,16 +847,6 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
 
         if order eq 0 then begin ;     Na order_60 ?
           
-          NS0__   = 0.5*(REFORM(cube[500:900,*,11]+cube[500:900,*,12]))
-          NS10_E  = 0.5*(REFORM(cube[500:900,*,18]+cube[500:900,*,19]))
-          NS20_E  = 0.5*(REFORM(cube[500:900,*,20]+cube[500:900,*,21]))
-          NS10_W  = 0.5*(REFORM(cube[500:900,*,14]+cube[500:900,*,15]))
-          NS20_W  = 0.5*(REFORM(cube[500:900,*,16]+cube[500:900,*,17]))
-          EW0__   = 0.5*(REFORM(cube[500:900,*,0 ]+cube[500:900,*,1 ]))
-          EW10_N  = 0.5*(REFORM(cube[500:900,*,3 ]+cube[500:900,*,4 ]))
-          EW20_N  = 0.5*(REFORM(cube[500:900,*,5 ]+cube[500:900,*,6 ]))
-          EW10_S  = 0.5*(REFORM(cube[500:900,*,7 ]+cube[500:900,*,8 ]))
-          EW20_S  = 0.5*(REFORM(cube[500:900,*,9 ]+cube[500:900,*,10]))
 
           P = cglayout([2,2], ygap = 0., oxmargin = [14, 2], oymargin = [6,8], xgap = 0.)
           axis_format = {XTicklen:-.01, yticklen:-0.01 }
@@ -770,6 +872,31 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
             
             cgplot, column/1.e10, findgen(38), title = 'Na Column Density', /ynozero, /noerase, pos = p[*,3], ys= 5, $
               xtitle = cgsymbol('times')+'10!U10!N atoms / cm!U2!N'
+              
+              
+              
+              
+              
+              
+              
+              
+              
+              
+              
+              
+              
+              
+              
+              
+              
+              
+              
+              
+              
+              
+              
+              
+              
           
 ; below, i'm trying to get units of rayleighs to match leblanc (2005) plots. first, i try to divide col. dens. by exp. time
           

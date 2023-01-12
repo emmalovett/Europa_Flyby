@@ -37,75 +37,21 @@ pro keck_reductions, part=part
 ; ====================================================== SPICE KERNELS ALL LOADED =========================================================
 
 
-; all basic reductions (bias, flats, thar) are done in keck_europa_flyby.pro part=0.
-
-; ------------------------------------------------------- cosmic ray subtraction ----------------------------------------------------------
-  if part eq 0 then begin
-    
-    ;la_cosmic, directory+'Flat_BS.fits', outsuff = "CR", sigclip = 4.5, statsec = imaging_statsec, readn=RDnoise, gain=Gain
-    Na_flatBSCR = MRDFITS(directory+'Flat_BSCR.fits', 0, header, /Dscale, /silent )
-    Na_flat_spectra = Na_flatBSCR
-    s_spectra = size(Na_flat_spectra, /dim)
-
-; Process the spectral frames
-   ; window, 0, xs = s_spectra[0], ys = s_spectra[1]
-    
-    filenames = file_search(directory+'hires0*') ; these are all bias subtracted and flat corrected; need to do cosmic rays
-    
-    for i = 0, n_elements(filenames)-1 do begin
-      filename = strcompress(filenames[i])
-      
-      Gain = 1.
-      Print, filenames[I], (sxpar(header, 'EXPOSURE'))
-      new_filename = STRMID(filename, strlen(directory))
-      new_filename = STRMID(new_filename, 0, strpos(new_filename,'.fits'))
-      
-      la_cosmic, directory + new_filename + '.fits', outsuff = "CR", sigclip = 8.0, statsec = statsec, readn=RDnoise, gain=Gain
-      
-      BSCR = MRDFITS(directory+new_filename+'CR.fits', 0, header, /Dscale, /silent )
-      Dummy = BSCR
-      
-      Xshift       = 0.
-      Yshift       = 0.                                                                                   ; checked & looking good for europa
-      flat         = Na_flat_spectra
-      shifted_flat = INTERPOLATE(flat, findgen(s_spectra[0]) + xshift, findgen(s_spectra[1]) + yshift, Missing = !values.F_NaN, /grid)
-      
-      ; Flat field the spectral channels
-      ;BSCR = BSCR / shifted_flat        ; this line is screwing things up >:(
-      
-      if filename eq directory+'hires0127.Cleaned.fits' then stop
-      ; Inspect
-      wset, 0
-      tv, bytscl(BSCR)
-
-      ; Calculate the Doppler shift between absorption and emission line centers, i.e. Europa's heliocentric velocity
-      UTC_String = sxpar(header, 'DATE')
-      cspice_UTC2ET, UTC_string, ET
-      cspice_spkezr, 'Europa', ET, 'J2000', 'LT', 'Sun', Europa_Sun_State, ltime
-      theta  = cspice_vsep(Europa_Sun_State[0:2], Europa_Sun_State[3:5])
-      Dopplershift = cos(theta) * norm(Europa_Sun_State[3:5])                  ; km/s heliocentric velocity: scalar projection of the relative velocity along the line of sight
-      sxaddpar, raw_header, 'R_dot', Dopplershift, 'Europa approx heliocentric velocity [km/s]'
-      Print, UTC_string, ' Europa approximate heliocentric velocity =', Dopplershift, ' km/s'
-
-      MWRFITS, BSCR, directory+'Cosmic Rays\' + new_filename + '.FF.fits', raw_header, /silent, /create
-      
-    ENDFOR
-    stop
-  ENDIF
-
+; all basic reductions (bias, flats, thar, and cosmic ray sub) are done in keck_europa_flyby.pro part=0.
 
 ; ============================================ STRAIGHTENING IMAGE IN Y AND RECTIFYING IN X ===================================================
 
-  if part eq 1 then begin
+  if part eq 0 then begin
 
 ; --------------------------------------------------------- Straightening in Y ----------------------------------------------------------------
 
-    files     = FILE_SEARCH(directory+'\Cosmic Rays\', "*FF.fits", count=n_Files)
+    files     = FILE_SEARCH(directory+'\Cosmic Rays\', "*Cleaned.fits", count=n_Files)
+    
     newimg    = fltarr(s_coords[1] - s_coords[0] + 1, s_coords[3] - s_coords[2] + 1)
     sunimg    = fltarr(s_coords[1] - s_coords[0] + 1, s_coords[3] - s_coords[2] + 1)
     pixelsofsun = 4.
     COADDED = make_array(1024, 480)
-
+    stop
     FOR file = 0, 12 DO BEGIN
       array = MRDFITS(files[file], 0, header, /Fscale, /silent)
       array = float(array)
