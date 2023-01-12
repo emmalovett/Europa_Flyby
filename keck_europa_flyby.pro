@@ -1,3 +1,28 @@
+;+
+; NAME:
+;       Keck_Europa_Flyby
+; PURPOSE:
+;       Analyze Keck HIRES data od Europa's Na and K emissions during the Sept 28, 2022 Juno Flyby
+; EXPLANATION:
+;       The output X and Y coordinates are scaled to be between
+;       -90 and +90 to go from equator to pole to equator. Output map points
+;       can be centered on the north pole or south pole.
+;
+; CALLING SEQUENCE:
+;       Keck_Europa_Flyby, part = part
+;
+; INPUTS:
+;       Part = 0 Bias subtration, cosmic ray
+;              1 Flatten, extract orders and get the wavelength solutions
+;
+; OUTPUTS:
+;
+; KEYWORDS:
+;
+; REVISION HISTORY:
+;       Skeleton adaptation from prior HIRES code C. Schmidt & E. Lovett December 2022
+;-
+
 FUNCTION MX_plus_B, X, P
   ; multiply P[0] and offset P[1]
   return, P[0]*X+ P[1]
@@ -31,6 +56,8 @@ end
 FUNCTION scale_fit_sunlight, p, x
   return, P[0]*GAUSS_SMOOTH(x,P[2],/EDGE_TRUNCATE) + P[1]
 end
+
+
 
 PRO Keck_Europa_Flyby, part = part, dir = dir
 
@@ -561,7 +588,8 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
 
   if part eq 1.5 then begin
 
-    ; the g-value 
+; ------------------------------------------------------- calculate the g-value -------------------------------------------------------
+      
       SOLAR_SPECTRUM_FILE = 'C:\IDL\Generic Model V3\read_write\' + 'hybrid_reference_spectrum_c2021-03-04_with_unc.nc'
       NCDF_LIST, SOLAR_SPECTRUM_FILE, /VARIABLES, /DIMENSIONS, /GATT, /VATT
   
@@ -589,7 +617,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         GVALUE, 'K-D', 12.7059021e3, 4.956350334656, WL_A[k_ind-9000:k_ind+9000], Flux[k_ind-9000:k_ind+9000], g_K
         print, 'g-value for K D1+D2 using horizons', g_K
     
-    ;---------------------------- Determine Sensitivy for flux calibration -------------------------------------
+;--------------------------------------------------- Determine Sensitivy for flux calibration ------------------------------------------
 
     ; Compare publications of Jupiter's spectral albedo at disk center
 
@@ -646,32 +674,32 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
 
     ; Adjust the expected absolute flux for Jupiter's Instantaneous Doppler shift
 
-      ; Get the body-fixed non-inertial IAU_Earth Coordinates of Keck Observatory in Cartesian
-        cspice_bodvrd, 'EARTH', 'RADII', 3, radii
-        flat = (radii[0] - radii[2])/radii[0]
-        OBSERVATORY_cs, 'Keck', obs_struct ;longitude is in degrees *West*, need to switch to East Longit for J2000 conversion via cspice_georec
-        cspice_georec, (360. - obs_struct.longitude) * CSPICE_RPD(), obs_struct.latitude * CSPICE_RPD(), obs_struct.altitude / 1.e3, $
-                        radii[0], flat, obs_IAU_Earth
-        origin = [obs_IAU_Earth, 0, 0, 0]
-      
-      ; Calculate radial velocity and adjust wavelength array for instantaneous Dopplershift
-        cspice_spkezr, 'Jupiter', et, 'IAU_EARTH', 'lt+s', 'Earth', Jupiter_Earth_State, ltime  
-        state = Jupiter_Earth_State - origin
-        Jupiter_wrt_Earth_Dopplershift = total(state[0:2]*state[3:5]/sqrt(total(state[0:2]^2)))
-        WL_A = WL_A + WL_A*Jupiter_wrt_Earth_Dopplershift/cspice_clight()
+    ; Get the body-fixed non-inertial IAU_Earth Coordinates of Keck Observatory in Cartesian
+      cspice_bodvrd, 'EARTH', 'RADII', 3, radii
+      flat = (radii[0] - radii[2])/radii[0]
+      OBSERVATORY_cs, 'Keck', obs_struct ;longitude is in degrees *West*, need to switch to East Longit for J2000 conversion via cspice_georec
+      cspice_georec, (360. - obs_struct.longitude) * CSPICE_RPD(), obs_struct.latitude * CSPICE_RPD(), obs_struct.altitude / 1.e3, $
+                      radii[0], flat, obs_IAU_Earth
+      origin = [obs_IAU_Earth, 0, 0, 0]
+    
+    ; Calculate radial velocity and adjust wavelength array for instantaneous Dopplershift
+      cspice_spkezr, 'Jupiter', et, 'IAU_EARTH', 'lt+s', 'Earth', Jupiter_Earth_State, ltime  
+      state = Jupiter_Earth_State - origin
+      Jupiter_wrt_Earth_Dopplershift = total(state[0:2]*state[3:5]/sqrt(total(state[0:2]^2)))
+      WL_A = WL_A + WL_A*Jupiter_wrt_Earth_Dopplershift/cspice_clight()
 
 
-      ; Find the angular radius of Europa 
-        cspice_bodvrd, 'Europa', 'RADII', 3, radii
-        ang_radius = 206265.*tan(radii[0]/sqrt(total(state[0:2]^2)))
+    ; Find the angular radius of Europa 
+      cspice_bodvrd, 'Europa', 'RADII', 3, radii
+      ang_radius = 206265.*tan(radii[0]/sqrt(total(state[0:2]^2)))
         
 
-      ; ----------------------Flux Calibrate Using Distance and Absolute Spectral Reflectivity of Jupiter---------------------------
+; --------------------------------- Flux Calibrate Using Distance and Absolute Spectral Reflectivity of Jupiter -------------------------------------
 
-        ; D3 smooth_by = 3.6
-        ; C3 smooth_by = 2.1
+; D3 smooth_by = 3.6
+; C3 smooth_by = 2.1
 
-        smooth_by = 2.1
+      smooth_by = 2.1
 
       loadct, 0
       orders_to_calibrate = ['order_60', 'order_46']
@@ -679,21 +707,21 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
       FOR order = 0, N_elements(orders_to_calibrate) - 1 do begin
         restore, dir + '\Processed\' + orders_to_calibrate[order]+'.sav' 
    
-        ; Determine the instrumental sensitivity from the expected versus measured flux at Jupiter Disk Center. This should be a smooth function
+      ; Determine the instrumental sensitivity from the expected versus measured flux at Jupiter Disk Center. This should be a smooth function
           expected_flux          = interpol(Rayleighs_per_angstrom, WL_A, WL)       ; move expected flux to the Jovian Doppler-shift, UNITS are R / A
           smoothed_expected_flux = GAUSS_SMOOTH(expected_flux, smooth_by, /edge_truncate) ; this smoothing looks about right for HIRES D3
 
-        ; find the count rate in the middle 3 rows at slit center    
+      ; find the count rate in the middle 3 rows at slit center    
           s = size(Jupiter_cube, /dim)
           Jupiter_DN_per_s_at_disk_center = median(Jupiter_cube[*, s[1]/2.-1:s[1]/2.+1], dim=2)
           
-          ; the ThAr wavelenth solution isn't always perfect match, which will throw the sensetivity fit.
-          ; cross-correlate versus lag to align them to the nearest pixel, and 
-            lag = [-5,-4,-3,-2,-1,0,1,2,3,4,5]
-            junk = max(C_CORRELATE(Jupiter_DN_per_s_at_disk_center, smoothed_expected_flux, lag), shift_index)
-            smoothed_expected_flux = shift(smoothed_expected_flux,lag[shift_index])       ; shift into alignment
+      ; the ThAr wavelenth solution isn't always perfect match, which will throw the sensetivity fit.
+      ; cross-correlate versus lag to align them to the nearest pixel, and 
+          lag = [-5,-4,-3,-2,-1,0,1,2,3,4,5]
+          junk = max(C_CORRELATE(Jupiter_DN_per_s_at_disk_center, smoothed_expected_flux, lag), shift_index)
+          smoothed_expected_flux = shift(smoothed_expected_flux,lag[shift_index])       ; shift into alignment
             
-        ; find the sensetivity   
+      ; find the sensetivity   
           Sensitivity          = Jupiter_DN_per_s_at_disk_center / smoothed_expected_flux ; Sensitivity in (DN / S) / (R / A)
           ind                  = reverse(sort(Sensitivity))
           ind                  = ind[0:2000]                                              ; a subset of the top 50% most sensitive points (omits telluric absorp)
@@ -702,11 +730,11 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
           
           ; inspect 
           window, 6, xs=1024, ys=1024
-            cgplot, WL, sensitivity, /xs, ytitle = '(DN / S) / (R / A)', xtitle = 'angstroms', title = 'measured (black) vs fit (red) sensitivity'
-            cgplot, WL, fit_Sensitivity, color = 'red', /overplot
+          cgplot, WL, sensitivity, /xs, ytitle = '(DN / S) / (R / A)', xtitle = 'angstroms', title = 'measured (black) vs fit (red) sensitivity'
+          cgplot, WL, fit_Sensitivity, color = 'red', /overplot
           
           
-         _2D_sensetivity = rebin(fit_Sensitivity, s[0], s[1])
+          _2D_sensetivity = rebin(fit_Sensitivity, s[0], s[1])
           
           Jupiter_cube = Jupiter_cube / _2D_sensetivity
           
@@ -716,7 +744,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
           endfor
           
           
-;          SUNLIGHT SUBTRACTION. I'm using Europa's on-disk observations as sunlight spectrum by assuming it's perfectly ⋆｡˚ ☁︎ ˚shiny｡⋆｡˚☽˚｡⋆ 
+; ============ SUNLIGHT SUBTRACTION. I'm using Europa's on-disk observations as sunlight spectrum by assuming it's perfectly ⋆｡˚ ☁︎ ˚shiny｡⋆｡˚☽˚｡⋆ ========
           
           
           NS0__   = 0.5*(REFORM(cube[500:900,*,11]+cube[500:900,*,12]))             ; NS orientation on-disk
@@ -743,6 +771,8 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
           orientations[*,*,7] = EW20_N
           orientations[*,*,8] = EW10_S
           orientations[*,*,9] = EW20_S
+          
+          labels = ['NS0__','NS10_E','NS20_E','NS10_W','NS20_W','EW0__','EW10_N','EW20_N','EW10_S','EW20_S']
           
           sunmax = []
           newimg    = fltarr(s[1], s[2])
@@ -782,7 +812,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
           P_returned  = fltarr(4,s[2])                  ; Three coefficients + MPFIT's "Status"
           P_guessed   = Fltarr(3,s[2])                  ; Initial Guess that we throw at MPFIT
           
-          FOR orientation = 0, N_Elements(orientations[0,0,*]) DO BEGIN
+          FOR orientation = 0, N_Elements(orientations[0,0,*]) - 1 DO BEGIN
             FOR i = 0, s[2] - 1 DO BEGIN
 
           ; generate an initial guess for multipliciative scaling
@@ -812,101 +842,98 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
               sub         = guess_scale * sunlight_1d                          ; If you JUST want the multiplicative correction (no scattered sunlight accounted for w mpfit)
               totsubtrd   = row  - scaled_sunlight                             ; Change back to row - sub to get just the multiplicative factor
               newimg[*,i] = totsubtrd
-              window, 1, xs=401, ys=36
-              cgimage, newimg, minv=-500, maxv=500
             ENDFOR ; each row of ONE orientation
-            wait, 5
-          ENDFOR ; each orientation
-          
-          STOP
-          
-          
-          
-          
-          
-          
-      
-          if order eq 1 then begin
-      
+            
+            
+            
+            
+            
+          ; Now, creating the plots of brightness for each order of sodium and potassium.
+            
+            
+            
+            angstrom_per_pixel = mean(deriv(WL))
+            
+            if order eq 0 then begin ; Na order_60
+            
+            
+              P = cglayout([2,2], ygap = 0., oxmargin = [14, 2], oymargin = [9, 5], xgap = 0.)
+              axis_format = {XTicklen:-.01, yticklen:-0.01 }
+            
+              cgPS_Open, filename = 'C:\Users\elovett\EuropaResearch\Europa_Flyby\'+labels[orientation]+'_'+orders_to_calibrate[order]+'.eps', /ENCAPSULATED, xsize = 7.5, ysize = 5
+              !P.font=1
+              device, SET_FONT = 'Helvetica Bold', /TT_FONT
+            
+            
+              title = 'HIRES 2022-09-29 : '+labels[orientation]
+            
+              cgplot, wl[500:900], total(newimg, 2), /xs, xr = [wl[500], wl[900]], pos = p[*,0], xtickformat = '(A1)', $
+              title=title, ytitle = 'Rayleighs / ' + cgsymbol('Angstrom')
+            
+              cgimage, newimg, minv=-500, maxv=500, /axes, xr = [wl[500], wl[900]], pos = p[*,2], yr = [-(14.*.5/ang_radius), (14.*.5/ang_radius)]+.4, /noerase, $
+                ytit = 'Europa Radii', xtitle = 'Angstroms', AXKEYWORDS = axis_format
+            
+              ;very rough calculations here
+              ind = min(abs(wl[500:900] - 5890.2),loc)
+              profile = total(newimg[loc-4:loc+4,*], 1)
+            
+              column = profile * 9. * angstrom_per_pixel * 1.5 * 10.e6 / g_Na
+              column[-1] = column[-2]
+            
+              cgplot, column/1.e10, findgen(N_elements(newimg[0,*])), title = 'Na Column Density', /ynozero, /noerase, pos = p[*,3], ys= 5, $
+                xtitle = cgsymbol('times')+'10!U10!N atoms / cm!U2!N'
+            
+            
+            
+              cgps_Close
+              
+            endif
+              
+              
+              
+            
+            if order eq 1 then begin ; K order
+
               axis_format = {XTicklen:-.01, yticklen:-0.005 }
 
 
               P = cglayout([1,2]);, ygap = 0., oxmargin = [12, .9], oymargin = [9, 5])
-              cgPS_Open, filename = 'C:\Users\elovett\EuropaResearch\Europa_Flyby\'+orders_to_calibrate[order]+'.eps', /ENCAPSULATED, xsize = 7.5, ysize = 5
+              cgPS_Open, filename = 'C:\Users\elovett\EuropaResearch\Europa_Flyby\'+labels[orientation]+'_'+orders_to_calibrate[order]+'.eps', /ENCAPSULATED, xsize = 7.5, ysize = 5
               !P.font=1
               device, SET_FONT = 'Helvetica Bold', /TT_FONT
-                cgplot, WL, total(NS0__, 2), /xs, xr = [wl[0], wl[1200]], pos = p[*,0], xtickformat = '(A1)', $
-                  title='HIRES 2022-09-29 12:53 UT: 10 R!DEuropa!N Offset East, N-S Slit', ytitle = 'Rayleighs / ' + cgsymbol('Angstrom')
+              cgplot, WL, total(newimg, 2), /xs, xr = [wl[0], wl[1200]], pos = p[*,0], xtickformat = '(A1)', $
+                 ytitle = 'Rayleighs / ' + cgsymbol('Angstrom')
+
+              cgimage, newimg, /axes, xr = [wl[0], wl[1200]], pos = p[*,1], yr = [-(14.*.5/ang_radius), (14.*.5/ang_radius)]-.7, /noerase, $
+                ytit = 'Europa Radii', xtitle = 'Angstroms', AXKEYWORDS = axis_format
+              cgps_Close
+            endif
+
+            
+            
+            
+            
+          ENDFOR ; each orientation
+          
+          STOP
+          
+
                 
-                cgimage, NS0__, /axes, xr = [wl[0], wl[1200]], pos = p[*,1], yr = [-(14.*.5/ang_radius), (14.*.5/ang_radius)]-.7, /noerase, $
-                  ytit = 'Europa Radii', xtitle = 'Angstroms', AXKEYWORDS = axis_format
-              cgps_Close       
-          endif 
-        
-        angstrom_per_pixel = mean(deriv(WL))
+                
+                
+                
+                
+                
+                
+                
+                
+                
+; below, i calculate units of rayleighs to match leblanc (2005) plots. 
+            
+            ;  cgplot, findgen(36), profile*angstrom_per_pixel * 1.5, title = 'East-West 20 R!DEuropa!N North', /ynozero, /noerase, ytitle = 'Rayleighs'
+            
 
-        if order eq 0 then begin ;     Na order_60 ?
-          
-
-          P = cglayout([2,2], ygap = 0., oxmargin = [14, 2], oymargin = [6,8], xgap = 0.)
-          axis_format = {XTicklen:-.01, yticklen:-0.01 }
-          cgPS_Open, filename = 'C:\Users\elovett\EuropaResearch\Europa_Flyby\'+orders_to_calibrate[order]+'.eps', /ENCAPSULATED, xsize = 10., ysize = 5
-            !P.font=1
-            device, SET_FONT = 'Helvetica Bold', /TT_FONT
-            
-            
-            title = 'HIRES 2022-09-29 12:53 UT: 10 R!DEuropa!N Offset East, North-South Slit'
-            
-            cgplot, wl[500:900], total(NS0__, 2), /xs, xr = [wl[500], wl[900]], pos = p[*,0], xtickformat = '(A1)', $
-              title=title, ytitle = 'Rayleighs / ' + cgsymbol('Angstrom')
-  
-            cgimage, NS0__, /axes, xr = [wl[500], wl[900]], pos = p[*,2], yr = [-(14.*.5/ang_radius), (14.*.5/ang_radius)]+.4, /noerase, $
-              ytit = 'Europa Radii', xtitle = 'Angstroms', AXKEYWORDS = axis_format
-            
-            ;very rough calculations here
-            ind = min(abs(wl[500:900] - 5890.2),loc)
-            profile = total(EW20_N[loc-4:loc+4,*], 1)
-            
-            column = profile*9.*angstrom_per_pixel * 1.5 * 10.e6/g_Na
-            column[-1] = column[-2]
-            
-            cgplot, column/1.e10, findgen(38), title = 'Na Column Density', /ynozero, /noerase, pos = p[*,3], ys= 5, $
-              xtitle = cgsymbol('times')+'10!U10!N atoms / cm!U2!N'
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-              
-          
-; below, i'm trying to get units of rayleighs to match leblanc (2005) plots. first, i try to divide col. dens. by exp. time
-          
-          ;  cgplot, findgen(36), profile*angstrom_per_pixel * 1.5, title = 'East-West 20 R!DEuropa!N North', /ynozero, /noerase, ytitle = 'Rayleighs'
-          
-          ;  cgplot, findgen(36), total(EW10_N, 1)*angstrom_per_pixel*36., /xs, ytitle = 'Rayleighs', xtitle='pixels'
-          
-          cgps_Close
-        endif
-        stop
+          stop
     endfor
     
     stop
