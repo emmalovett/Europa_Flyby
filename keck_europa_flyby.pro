@@ -496,7 +496,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         endcase
         gain = 0.0
         sigclip = 8.5
-        la_cosmic, Dir+'\Processed\Cosmic Rays\CR_' + Frames[frame],outsuff = "CR", sigclip = sigclip, statsec = statsec, gain = gain
+        ;la_cosmic, Dir+'\Processed\Cosmic Rays\CR_' + Frames[frame],outsuff = "CR", sigclip = sigclip, statsec = statsec, gain = gain
         CR_result_1 = mrdfits(Dir+'\Processed\Cosmic Rays\CR_hires'+strcompress(Europa_frames[frame], /rem)+'.Cleaned.fits', 0, junk_header)
         CR_Mask     = mrdfits(Dir+'\Processed\Cosmic Rays\CR_hires'+strcompress(Europa_frames[frame], /rem)+'.Cleaned-mask.fits', 0, junk_header)
 
@@ -515,11 +515,11 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
 
         ; Inspect Cosmic Ray Results
         window, 0, xs = 3400, ys = Aperture_width, title = 'Bias and Flat Corrected Frame: '+ Europa_frames[frame]
-        tv, bytscl(aperture, 0.5*mean(aperture), 1.5*mean(aperture))
+        tv, bytscl(aperture, 0, 100) ;0.5*mean(aperture), 1.5*mean(aperture))
         window, 4, xs = 3400, ys = Aperture_width, ypos = 100, title = 'Cosmic Ray Corrected Frame '+ Europa_frames[frame]
-        tv, bytscl(CR_result_1, 0.5*mean(aperture), 1.5*mean(aperture))
+        tv, bytscl(CR_result_1, 0, 100) ;0.5*mean(aperture), 1.5*mean(aperture))
         window, 8, xs = 3400, ys = Aperture_width, ypos = 200, title = 'Hot/Cold Pixel Filtered Cosmic Ray Corrected Frame '+ Europa_frames[frame]
-        tv, bytscl(CR_result_2, 0.5*mean(aperture), 1.5*mean(aperture))
+        tv, bytscl(CR_result_2, 0, 100) ;0.5*mean(aperture), 1.5*mean(aperture))
 ;        window, 12, xs = 3400, ys = Aperture_width, ypos = 300, title = 'Cosmic Ray Mask'
 ;        tv, bytscl(CR_mask, 0, 1)
         ;stop
@@ -909,9 +909,6 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
               cgps_Close
             endif
 
-            
-            
-            
             
           ENDFOR ; each orientation
           
