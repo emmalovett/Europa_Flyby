@@ -496,7 +496,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         endcase
         gain = 0.0
         sigclip = 8.5
-        ;la_cosmic, Dir+'\Processed\Cosmic Rays\CR_' + Frames[frame],outsuff = "CR", sigclip = sigclip, statsec = statsec, gain = gain
+        la_cosmic, Dir+'\Processed\Cosmic Rays\CR_' + Frames[frame],outsuff = "CR", sigclip = sigclip, statsec = statsec, gain = gain
         CR_result_1 = mrdfits(Dir+'\Processed\Cosmic Rays\CR_hires'+strcompress(Europa_frames[frame], /rem)+'.Cleaned.fits', 0, junk_header)
         CR_Mask     = mrdfits(Dir+'\Processed\Cosmic Rays\CR_hires'+strcompress(Europa_frames[frame], /rem)+'.Cleaned-mask.fits', 0, junk_header)
 
@@ -729,9 +729,9 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
           fit_Sensitivity      = poly(WL, sens_coeffs)
           
           ; inspect 
-          window, 6, xs=1024, ys=1024
-          cgplot, WL, sensitivity, /xs, ytitle = '(DN / S) / (R / A)', xtitle = 'angstroms', title = 'measured (black) vs fit (red) sensitivity'
-          cgplot, WL, fit_Sensitivity, color = 'red', /overplot
+;          window, 6, xs=1024, ys=1024
+;          cgplot, WL, sensitivity, /xs, ytitle = '(DN / S) / (R / A)', xtitle = 'angstroms', title = 'measured (black) vs fit (red) sensitivity'
+;          cgplot, WL, fit_Sensitivity, color = 'red', /overplot
           
           
           _2D_sensetivity = rebin(fit_Sensitivity, s[0], s[1])
@@ -841,16 +841,51 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
               sunimg[*,i] = scaled_sunlight
               sub         = guess_scale * sunlight_1d                          ; If you JUST want the multiplicative correction (no scattered sunlight accounted for w mpfit)
               totsubtrd   = row  - scaled_sunlight                             ; Change back to row - sub to get just the multiplicative factor
+              
+              if i eq suncol then continuum = scaled_sunlight                  ; this saves the non-sun subtracted continuum row so that i can reference it later
+              
               newimg[*,i] = totsubtrd
             ENDFOR ; each row of ONE orientation
             
             
+; first, i'm going to make a figure comparing non-sun subtracted vs sun subtracted spectra.
+            
+            P = cglayout([2,2], ygap = 0., oxmargin = [10,10], oymargin = [6,5], xgap = 0.)
+            axis_format = {XTicklen:-.01, yticklen:-0.01 }
+            cgPS_Open, filename = 'C:\Users\elovett\EuropaResearch\Europa_Flyby\Sun Subtract Comparisons\'+orders_to_calibrate[order]+'_'+labels[orientation]+'_suncomparison.eps', /ENCAPSULATED, xsize = 11, ysize = 6
+            !P.font=1
+            loadct, 3
+            device, SET_FONT = 'Helvetica Bold', /TT_FONT
+            
+            
+            title = 'HIRES 2022-09-29 : '+labels[orientation]
+
+; non-sunlight subtracted on the left hand side
+             
+            cgplot, wl[500:900], europa[*,suncol], /xs, xr = [wl[500], wl[900]], pos = p[*,0], xtickformat = '(A1)', $
+              title=labels[orientation]+' Not Sun-Subtracted', ytitle = 'Rayleighs / ' + cgsymbol('Angstrom')
+              
+            cgplot, wl[500:900], continuum, /xs, xr = [wl[500], wl[900]], pos = p[*,0], xtickformat = '(A1)', $
+              title=title, ytitle = 'Rayleighs / ' + cgsymbol('Angstrom'), /overplot, color='red'
+            
+            cgimage, orientations[*,*,orientation], minv=0.75*mean(orientations[*,*,orientation]), maxv=3.0*mean(orientations[*,*,orientation]), /axes, xr = [wl[500], wl[900]], pos = p[*,2], yr = [-(14.*.5/ang_radius), (14.*.5/ang_radius)]+.4, /noerase, $
+              ytit = 'Europa Radii', xtitle = 'Angstroms', AXKEYWORDS = axis_format
+              
+; sunlight subtracted on the right hand side              
+              
+            cgplot, wl[500:900], newimg[*,suncol], /xs, xr = [wl[500], wl[900]], pos = p[*,1], xtickformat = '(A1)', ytickformat = '(A1)', /noerase, title=labels[orientation]+' Sun-Subtracted'
+            cgaxis, yaxis=1
+
+            cgimage, newimg, minv=-5.e3, maxv=5.e3, /axes, xr = [wl[500], wl[900]], pos = p[*,3], yr = [-(14.*.5/ang_radius), (14.*.5/ang_radius)]+.4, /noerase, $
+              xtitle = 'Angstroms', AXKEYWORDS = axis_format
+            
+            cgps_Close
             
             
             
-          ; Now, creating the plots of brightness for each order of sodium and potassium.
             
             
+; Now, creating the plots of brightness for each order of sodium and potassium.
             
             angstrom_per_pixel = mean(deriv(WL))
             
@@ -860,8 +895,9 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
               P = cglayout([2,2], ygap = 0., oxmargin = [14, 2], oymargin = [9, 5], xgap = 0.)
               axis_format = {XTicklen:-.01, yticklen:-0.01 }
             
-              cgPS_Open, filename = 'C:\Users\elovett\EuropaResearch\Europa_Flyby\'+labels[orientation]+'_'+orders_to_calibrate[order]+'.eps', /ENCAPSULATED, xsize = 7.5, ysize = 5
+              cgPS_Open, filename = 'C:\Users\elovett\EuropaResearch\Europa_Flyby\3 Panel Plots\'+orders_to_calibrate[order]+'_'+labels[orientation]+'.eps', /ENCAPSULATED, xsize = 7.5, ysize = 5
               !P.font=1
+              loadct, 3
               device, SET_FONT = 'Helvetica Bold', /TT_FONT
             
             
@@ -890,21 +926,19 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
             endif
               
               
-              
-            
-            if order eq 1 then begin ; K order
+            if order eq 1 then begin ; K order_46
 
               axis_format = {XTicklen:-.01, yticklen:-0.005 }
 
 
               P = cglayout([1,2]);, ygap = 0., oxmargin = [12, .9], oymargin = [9, 5])
-              cgPS_Open, filename = 'C:\Users\elovett\EuropaResearch\Europa_Flyby\'+labels[orientation]+'_'+orders_to_calibrate[order]+'.eps', /ENCAPSULATED, xsize = 7.5, ysize = 5
+              cgPS_Open, filename = 'C:\Users\elovett\EuropaResearch\Europa_Flyby\3 Panel Plots\'+orders_to_calibrate[order]+'_'+labels[orientation]+'.eps', /ENCAPSULATED, xsize = 7.5, ysize = 5
               !P.font=1
               device, SET_FONT = 'Helvetica Bold', /TT_FONT
-              cgplot, WL, total(newimg, 2), /xs, xr = [wl[0], wl[1200]], pos = p[*,0], xtickformat = '(A1)', $
+              cgplot, WL, newimg[*,suncol], /xs, xr = [wl[0], wl[s[2]]], pos = p[*,0], xtickformat = '(A1)', $
                  ytitle = 'Rayleighs / ' + cgsymbol('Angstrom')
 
-              cgimage, newimg, /axes, xr = [wl[0], wl[1200]], pos = p[*,1], yr = [-(14.*.5/ang_radius), (14.*.5/ang_radius)]-.7, /noerase, $
+              cgimage, newimg, minv=0.5*mean(newimg), maxv=1.5*mean(newimg), /axes, xr = [wl[0], wl[1200]], pos = p[*,1], yr = [-(14.*.5/ang_radius), (14.*.5/ang_radius)]-.7, /noerase, $
                 ytit = 'Europa Radii', xtitle = 'Angstroms', AXKEYWORDS = axis_format
               cgps_Close
             endif
@@ -912,25 +946,12 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
             
           ENDFOR ; each orientation
           
-          STOP
-          
-
-                
-                
-                
-                
-                
-                
-                
-                
-                
                 
 ; below, i calculate units of rayleighs to match leblanc (2005) plots. 
             
             ;  cgplot, findgen(36), profile*angstrom_per_pixel * 1.5, title = 'East-West 20 R!DEuropa!N North', /ynozero, /noerase, ytitle = 'Rayleighs'
             
 
-          stop
     endfor
     
     stop
