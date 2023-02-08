@@ -47,22 +47,19 @@ end
 
 FUNCTION match_scattered_sunlight, p, x=x, y=y, err=err, fit=fit
   common sunlight_fit_common, fitindices
-
-  fit = P[0]*GAUSS_SMOOTH(x,P[2],/EDGE_TRUNCATE) + P[1]
-
+    fit = P[0]*GAUSS_SMOOTH(x,P[2],/EDGE_TRUNCATE) + P[1]
   return, abs(y - fit)/err
-end
+end ; matched with "scale_fit_sunlight" below
 
 FUNCTION scale_fit_sunlight, p, x
   return, P[0]*GAUSS_SMOOTH(x,P[2],/EDGE_TRUNCATE) + P[1]
 end
 
-
-
 PRO Keck_Europa_Flyby, part = part, dir = dir
 
   case dir of
-    'C:\DATA\HIRES_20220928': begin
+    ;'C:\DATA\HIRES_20220928': begin
+    'Z:\DATA\Keck\Europa Na\HIRES_20220928': begin
       ;Europa           = '1003517' ; aka C/2017 K2 (PANSTARRS)
       biases          = string(indgen(10)+4, format='(I4.4)')
       Flats           = string(indgen(10)+15, format='(I4.4)')
@@ -273,11 +270,11 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
   order_53 = {guess_coeffs:[6648.54,0.0325630,-6.61965e-007], low_bound:789,  hi_bound:885,  WL_range:[5576., 5578], aperture_limit:[4,41], name:'order_53'}
   order_54 = {guess_coeffs:[6525.79,0.0313552,-4.81000e-007], low_bound:737,  hi_bound:828,  WL_range:[5576., 5578], aperture_limit:[4,41], name:'order_54'}
   order_55 = {guess_coeffs:[6367.40,0.0310416,-5.14465e-007], low_bound:665,  hi_bound:775,  WL_range:[5576., 5578], aperture_limit:[4,41], name:'order_55'};dodgy!
-  order_56 = {guess_coeffs:[6292.60,0.0305972,-5.90291e-007], low_bound:613,  hi_bound:699,  WL_range:[5576., 5578], aperture_limit:[5,41], name:'order_56'}
+  order_56 = {guess_coeffs:[6292.60,0.0305972,-5.90291e-007], low_bound:620,  hi_bound:699,  WL_range:[5576., 5578], aperture_limit:[5,41], name:'order_56'}
   order_57 = {guess_coeffs:[6182.21,0.0300263,-5.73491e-007], low_bound:564,  hi_bound:652,  WL_range:[5576., 5578], aperture_limit:[6,41], name:'order_57'}
   order_58 = {guess_coeffs:[6075.60,0.0293140,-5.14465e-007], low_bound:518,  hi_bound:607,  WL_range:[5576., 5578], aperture_limit:[7,42], name:'order_58'}
   order_59 = {guess_coeffs:[5972.71,0.0289892,-5.60534e-007], low_bound:470,  hi_bound:560,  WL_range:[5576., 5578], aperture_limit:[7,42], name:'order_59'}
-  order_60 = {guess_coeffs:[5873.10,0.0285314,-5.54225e-007], low_bound:425,  hi_bound:516,  WL_range:[5576., 5578], aperture_limit:[7,42], name:'order_60'}
+  order_60 = {guess_coeffs:[5873.10,0.0285314,-5.54225e-007], low_bound:435,  hi_bound:516,  WL_range:[5576., 5578], aperture_limit:[7,42], name:'order_60'}
   order_61 = {guess_coeffs:[5776.98,0.0279140,-5.14465e-007], low_bound:383,  hi_bound:473,  WL_range:[5576., 5578], aperture_limit:[3,42], name:'order_61'}
   order_62 = {guess_coeffs:[5683.90,0.0272618,-4.66680e-007], low_bound:340,  hi_bound:431,  WL_range:[5576., 5578], aperture_limit:[4,42], name:'order_62'}
   order_63 = {guess_coeffs:[5593.67,0.0269984,-5.01777e-007], low_bound:301,  hi_bound:389,  WL_range:[5576., 5578], aperture_limit:[5,42], name:'order_63'}
@@ -289,12 +286,12 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
   order_69 = {guess_coeffs:[5107.44,0.0245935,-4.72139e-007], low_bound:84,  hi_bound:158,  WL_range:[5575., 5580], aperture_limit:[12,38], name:'order_69'}
   order_70 = {guess_coeffs:[5034.47,0.0242993,-4.84337e-007], low_bound:51,  hi_bound:122,  WL_range:[5575., 5580], aperture_limit:[13,38], name:'order_70'}
 
-  orders   = [ order_38, order_39, order_40, order_41, order_42, order_43, order_44, order_45, order_46, $
-    order_47, order_48, order_49, order_50, order_51, order_52, order_53, order_54, order_55, order_56, order_57, order_58,$
-    order_59, order_60, order_61, order_62, order_63, order_64, order_65, order_66, order_67, order_68, order_69, order_70]
-  
-  ;ONLY focus on Na and K orders...?hack
-  orders   = [order_46, order_56, order_60]
+;  orders   = [ order_38, order_39, order_40, order_41, order_42, order_43, order_44, order_45, order_46, $
+;    order_47, order_48, order_49, order_50, order_51, order_52, order_53, order_54, order_55, order_56, order_57, order_58,$
+;    order_59, order_60, order_61, order_62, order_63, order_64, order_65, order_66, order_67, order_68, order_69, order_70]
+;  
+  ; ONLY reduce on K D, O 6300 and, Na D orders
+    orders   = [order_46, order_56, order_60]
   
   
   ;x = findgen(22)+45
@@ -311,21 +308,22 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
   ;print, [transpose(xinterp), transpose(yinterp)]
   ;stop
 
-  if part eq 1 then begin ; flatten, extract and get the wavelength solutions
+  if part eq 1 then begin ; Straighten, extract and get the wavelength solutions
 
-    Aperture_width = 50. ; rough width of the aperture in pixels
+    slit_length_pix = 44 ; rough width of the aperture in pixels
 
-    READCOL,'C:\IDL\Io\Keck Programs\thar_uves.dat', F='X,F', ThAr_WL, STRINGSKIP = '#', skipline = 800, numline = 1600
+    READCOL,'Z:\DATA\___Calibration___\thar_uves.dat', F='X,F', ThAr_WL, STRINGSKIP = '#', skipline = 800, numline = 1600
 
     for h = 0, N_elements(orders) - 1 do begin
 
       order = orders[h]
-      ;if order.name ne 'order_45' then continue
+      
+      ;if order.name ne 'order_60' then continue
 
       ; Use a star to find the trace in within the orders of interest
-      Star = mrdfits(Dir+'\Processed\Star.Trace.fits', 0, star_header) ; do not use multiple Ganymede frames here, it's important it's fixed.
-      ThAr = mrdfits(Dir+'\Processed\ThAr.fits', 0, ThAr_header)
-      flat = mrdfits(Dir+'\Processed\FLAT_BS.fits', 0, Flat_header)    ; not yet normalized to unity
+        Star = mrdfits(Dir+'\Processed\Star.Trace.fits', 0, star_header) ; do not use multiple Ganymede frames here, it's important it's fixed.
+        ThAr = mrdfits(Dir+'\Processed\ThAr.fits', 0, ThAr_header)
+        flat = mrdfits(Dir+'\Processed\FLAT_BS.fits', 0, Flat_header)    ; not yet normalized to unity
 
       print, 'ECHANGL = ', sxpar(star_header, 'ECHANGL')
       print, 'XDANGL = ', sxpar(star_header, 'XDANGL')
@@ -338,7 +336,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
       ID          = make_array(N_elements(order_lines), value = 1.e5)
 
       cube          = fltarr(4001, 1 + order.aperture_limit[1] - order.aperture_limit[0], N_elements(Europa_frames))
-      Jupiter_cube  = fltarr(4001, 1 + order.aperture_limit[1] - order.aperture_limit[0], N_elements(Jupiter_frames))
+      Jupiter_cube  = fltarr(4001, 1 + order.aperture_limit[1] - order.aperture_limit[0], N_elements(Jupiter_frames)) ; See how it's expecting more than 1 jupiter frame here? that's so you can compare each flux calibration later
 
       Frames = 'hires'+strcompress(Europa_frames, /rem)+'.Cleaned.fits'
       for frame = 0, n_elements(Frames)-1 do begin
@@ -358,58 +356,104 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         ;              stop
 
         ; trace each order's footprint on the chip using the centroid of the Star Spectrum
+        
         subframe = Star[0:4000, order.low_bound:order.hi_bound]
+        ;subframe = Europa[0:4000, order.low_bound:order.hi_bound] 
         s = size(subframe, /dim)
         trace = fltarr(s[0])
         for i = 0, s[0] - 1 do begin
           junk = max(subframe[i,*], loc, /nan)
           trace[i] = loc
-          ;if I eq 500 then stop
+          
+          ; Or, the much slower, but slightly better way to trace...
+          ; junk     = mpfitpeak(findgen(s[1]), subframe[i,*], a, STATUS = STATUS, estimates = [500., loc, 1., 0.], /positive)
+          ; trace[i] = a[1]
         endfor
 
-        ; Okay running some gymnastics to try and isolate the trace of the star (or other object w/ bright continuum) in just 1 order
         trace_old = trace
-        trace2    = trace
-
-        ; Replace the left & right edges that found maxima in higher / lower orders
         replace_left = trace[0:2000]
         replace_right= trace[2001:*]
-        replace_left[where(replace_left gt mean(minmax(trace_old)))] = !values.F_nan
-        replace_right[where((replace_right lt mean(minmax(trace_old))) or (replace_right gt 100.) )] = !values.F_nan
+        replace_left[where(replace_left gt 41.)] = !values.F_nan
+        replace_right[where( (replace_right lt 30.) or (replace_right gt 100.) )] = !values.F_nan
         trace[0:2000] = replace_left
         trace[2001:*] = replace_right
-        keep1 = where(finite(trace))
+        keep = where(finite(trace))
+        x    = findgen(s[0])
+        keep = keep[where(x[keep] lt 4060., /null)] ;edge effects are rather dodgy so omit that part of the trace
+        
+        ; Manual over-ride, when this technique fails, especially at the ccd boundaries.
+        ;  if ((date eq 'UT221124') and (order.name eq 'order_55')) then keep = keep[where(keep gt 1150., /null)] ;... for example
 
-        ; fit the linear slope of what's left and reject things that are far from the linear fit.
-        x = findgen(s[0])
-        linear_slope_coeffs = poly_fit( [x[keep1[0]],x[keep1[-1]]], [trace[keep1[0]], trace[keep1[-1]]], 1)
-        linear_fit = POLY( findgen(s[0]), linear_slope_coeffs)
-        trace2[where(abs(trace_old - linear_fit) gt 5., /null)] = !values.F_nan
-        keep2 = where(finite(trace2))
-        coeffs = poly_fit(x[keep2], trace2[keep2], 3)                ; Trace Star position with a 3rd order polynomial
+        coeffs = poly_fit(x[keep], trace[keep], 5, Yfit = Yerror)          ; trace continuum source's position with a 4th order polynomial
 
-        window, 1, xs = 1800, ys=800, title = 'Continuum Trace for: ' + ORDER.NAME
-        cgplot, findgen(s[0]), trace_old, psym = 4, /ynozero
-        cgplot, x[keep1], trace[keep1], psym = 4, /overplot, color = 'red'
-        cgplot, findgen(s[0]), trace2, psym = 4, /overplot, color = 'blue'
-        cgplot, x, POLY( findgen(s[0]), linear_slope_coeffs), /overplot, color = 'red'   ; this is the "pretty good" linear trace
-        cgplot, x, POLY( findgen(s[0]), coeffs), /overplot, color = 'blue'               ; this is the best fit trace location
+        window, 1, xs = 1800, ys=800, title = 'WAVELENGTH SOLUTION FOR: ' + ORDER.NAME
+        cgplot, findgen(s[0]), trace_old, psym = 4, /ynozero, /yst, /xst 
+        cgplot, findgen(s[0]), trace, psym = 4, /overplot, color = 'red'
+        cgplot, x, POLY( findgen(s[0]), coeffs), /overplot, color = 'blue' ; IF THIS FIT TO THE RED DATA POINTS IS BAD, EVERYTHING DOWNSTREAM FAILS
+       ;stop                                                               ; THIS IS A GOOD SPOT TO INSPECT THE TRACE FITTING, MOVING UPPER & LOWER BOUNDS
+        
+        ThAr_order_straight = fltarr(s[0], slit_length_pix)
+        Flat_order_straight = fltarr(s[0], slit_length_pix)
+        Star_order_straight = fltarr(s[0], slit_length_pix)
+        Europa_order_straight = fltarr(s[0], slit_length_pix)
+        for i = 0, s[0] - 1 do begin ; for column of wavelength, shift the spectra up & down tgo straighten them out.
+          interpt_at               = float(order.low_bound) + findgen(slit_length_pix) - float(slit_length_pix)/2. + POLY( float(i), coeffs)
 
-        ThAr_order_straight = fltarr(s[0], Aperture_width)
-        Flat_order_straight = fltarr(s[0], Aperture_width)
-        Star_order_straight = fltarr(s[0], Aperture_width)
-        Europa_order_straight = fltarr(s[0], Aperture_width)
-        for i = 0, s[0] - 1 do begin
-          Star_order_straight[i,*] = interpolate(Star[i,*], order.low_bound + findgen(Aperture_width)- Aperture_width/2. + POLY( i, coeffs))
-          ThAr_order_straight[i,*] = interpolate(ThAr[i,*], order.low_bound + findgen(Aperture_width) - Aperture_width/2. + POLY( i, coeffs))
-          flat_order_straight[i,*] = interpolate(flat[i,*], order.low_bound + findgen(Aperture_width) - Aperture_width/2. + POLY( i, coeffs))
-          Europa_order_straight[i,*] = interpolate(Europa[i,*], order.low_bound + findgen(Aperture_width) - Aperture_width/2. + POLY( i, coeffs))
+          Star_order_straight[i,*] = interpolate(Star[i,*], interpt_at, cubic = -0.5)
+          ThAr_order_straight[i,*] = interpolate(ThAr[i,*], interpt_at, cubic = -0.5)
+          flat_order_straight[i,*] = interpolate(flat[i,*], interpt_at, cubic = -0.5)
+          Europa_order_straight[i,*] = interpolate(Europa[i,*], interpt_at, cubic = -0.5)
         endfor
+
+;        E2 = Europa
+;        for i = 0, s[0] - 1 do begin ; for column of wavelength, shift the spectra up & down tgo straighten them out.
+;          shift_by               = POLY( float(i), coeffs) - POLY( 0., coeffs)
+; 
+;          sz = size(Europa[i,*])
+;          E2[i,*] = interpolate(Europa[i,*], findgen(sz(1)), findgen(sz(2))+shift_by, /grid)
+;        endfor
+;        window, 0, xs = 4001, ys =2139, title = 'straightened '
+;        tv, bytscl(E2, 0, 2000)
+;        stop
+
+;
+;          interpt_at          = POLY(findgen(s[0]), coeffs)
+;stop
+;          Star_order_straight = interpolate(Star, findgen(s[0]), interpt_at, cubic = -0.5, /grid)
+;          ThAr_order_straight = interpolate(ThAr, findgen(s[0]), interpt_at, cubic = -0.5, /grid)
+;          flat_order_straight = interpolate(flat, findgen(s[0]), interpt_at, cubic = -0.5, /grid)
+;          Europa_order_straight = interpolate(Europa, findgen(s[0]), interpt_at, cubic = -0.5, /grid)
+
+;  a = Europa[*,order.low_bound:order.hi_bound]
+;  S_a = size(a)
+;          XI = x[keep]
+;          YI = trace[keep]
+;          ; Enter the Xos and Yos:
+;          XO = x[keep]
+;          YO = replicate(50., N_elements(keep)) 
+;          ; Run POLYWARP to obtain a Kx and Ky:
+;          POLYWARP, XI, YI, XO, YO, 3, KX, KY
+;          ; Create a warped image based on Kx and Ky with POLY_2D:
+;          B = POLY_2D(A, KX, KY)
+;window, 0, xs = s[0], ys = s[1]
+;tv, bytscl(a, 0, 2100)
+;window, 1, xs = s[0], ys = s[1]
+;tv, bytscl(b, 0, 2100)
+;
+;stop
+
+;        window, 1
+;        plot, total(Europa_order_straight[*,10:30],2)
+;        ; Uh oh, I can see a the pixelated stair case in the resulting values on any give row, need a better way to straighten!! 
+;        window, 0, xs = 4001, ys = 10*slit_length_pix, title = 'straightened '
+;        tv, bytscl(alog(rebin(Europa_order_straight, 4001, 10*slit_length_pix))) 
+;        stop
+        
         
         Flat_aperture = Flat_order_straight[*, order.aperture_limit[0]:order.aperture_limit[1]]
         ;nomalize_with = mean(Flat_aperture, dim = 2, /NAN)
-        coeffs = poly_fit(findgen(s[0]), mean(Flat_aperture, dim = 2, /NAN), 3)
-        nomalize_with = poly(findgen(s[0]), coeffs)
+        flat_coeffs = poly_fit(findgen(s[0]), mean(Flat_aperture, dim = 2, /NAN), 3)
+        nomalize_with = poly(findgen(s[0]), flat_coeffs)
         Flat_aperture = Flat_aperture / rebin(nomalize_with, s[0],order.aperture_limit[1] - order.aperture_limit[0] + 1) ; Normalize the flat field to unity, now its spectral AND spatially normalized
         aperture      = Europa_order_straight[*, order.aperture_limit[0]:order.aperture_limit[1]]
         ;aperture      = aperture / Flat_aperture ; don't flatten twice!!!
@@ -458,12 +502,12 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         endfor
         coeff_2 = ROBUST_POLY_FIT(identpixl_2, identwave_2, 5, yfit_2, SIG)
 
-        ;          ; Manual override, when this technique fails
-        if order.name eq 'order_46' then coeff_2 = order.GUESS_COEFFS
-        if order.name eq 'order_44' then coeff_2 = order.GUESS_COEFFS
-        if order.name eq 'order_41' then coeff_2 = order.GUESS_COEFFS
-        if order.name eq 'order_40' then coeff_2 = order.GUESS_COEFFS
-        if order.name eq 'order_39' then coeff_2 = order.GUESS_COEFFS
+;        ; Manual override, when this technique fails
+         if order.name eq 'order_46' then coeff_2 = coeff_1 ; the potassium order's wavelength solution 
+;        if order.name eq 'order_44' then coeff_2 = order.GUESS_COEFFS
+;        if order.name eq 'order_41' then coeff_2 = order.GUESS_COEFFS
+;        if order.name eq 'order_40' then coeff_2 = order.GUESS_COEFFS
+;        if order.name eq 'order_39' then coeff_2 = order.GUESS_COEFFS
 
         cgplot, order_lines, make_array(N_elements(order_lines), value = 1.e5), /overplot, psym=4                                                           ; plot cataloged lines
         cgplot, interpol(WL_0, findgen(N_elements(WL_0)), identpixl_1), make_array(N_elements(identpixl_1), value = 2.e5), /overplot, psym=4, color = 'red' ; plot which lines were found in iteration 1
@@ -482,6 +526,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         Print, 'A better guess would have been:', ROBUST_POLY_FIT(identpixl_2, identwave_2, 2, junk, SIG)
         print, 'Poly fit coefficients:', coeff_2
         WL = poly(findgen(N_elements(WL)), coeff_2)                                                               ; this is the final wavelength solution (5th order)
+       ;STOP ; <--- INSPECT WL SOLUTION HERE
 
 ; write the fits files and run the Cosmic Ray Corrections. Some orders overlap the CCD edge in the extraction so exclude these regions in the CR correction
         SXADDPAR, Header, 'BZERO', 0
@@ -496,7 +541,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         endcase
         gain = 0.0
         sigclip = 8.5
-        la_cosmic, Dir+'\Processed\Cosmic Rays\CR_' + Frames[frame],outsuff = "CR", sigclip = sigclip, statsec = statsec, gain = gain
+;        la_cosmic, Dir+'\Processed\Cosmic Rays\CR_' + Frames[frame],outsuff = "CR", sigclip = sigclip, statsec = statsec, gain = gain
         CR_result_1 = mrdfits(Dir+'\Processed\Cosmic Rays\CR_hires'+strcompress(Europa_frames[frame], /rem)+'.Cleaned.fits', 0, junk_header)
         CR_Mask     = mrdfits(Dir+'\Processed\Cosmic Rays\CR_hires'+strcompress(Europa_frames[frame], /rem)+'.Cleaned-mask.fits', 0, junk_header)
 
@@ -514,56 +559,25 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         ;CR_mask[Bad_Pixel_Indicies] = 1b
 
         ; Inspect Cosmic Ray Results
-        window, 0, xs = 3400, ys = Aperture_width, title = 'Bias and Flat Corrected Frame: '+ Europa_frames[frame]
-        tv, bytscl(aperture, 0, 100) ;0.5*mean(aperture), 1.5*mean(aperture))
-        window, 4, xs = 3400, ys = Aperture_width, ypos = 100, title = 'Cosmic Ray Corrected Frame '+ Europa_frames[frame]
-        tv, bytscl(CR_result_1, 0, 100) ;0.5*mean(aperture), 1.5*mean(aperture))
-        window, 8, xs = 3400, ys = Aperture_width, ypos = 200, title = 'Hot/Cold Pixel Filtered Cosmic Ray Corrected Frame '+ Europa_frames[frame]
-        tv, bytscl(CR_result_2, 0, 100) ;0.5*mean(aperture), 1.5*mean(aperture))
-;        window, 12, xs = 3400, ys = Aperture_width, ypos = 300, title = 'Cosmic Ray Mask'
-;        tv, bytscl(CR_mask, 0, 1)
-        ;stop
+          window, 0, xs = 3400, ys = slit_length_pix, title = 'Bias and Flat Corrected Frame: '+ Europa_frames[frame]
+          tv, bytscl(aperture, 0, 100) ;0.5*mean(aperture), 1.5*mean(aperture))
+          window, 4, xs = 3400, ys = slit_length_pix, ypos = 100, title = 'Cosmic Ray Corrected Frame '+ Europa_frames[frame]
+          tv, bytscl(CR_result_1, 0, 100) ;0.5*mean(aperture), 1.5*mean(aperture))
+          window, 8, xs = 3400, ys = slit_length_pix, ypos = 200, title = 'Hot/Cold Pixel Filtered Cosmic Ray Corrected Frame '+ Europa_frames[frame]
+          tv, bytscl(CR_result_2, 0, 100) ;0.5*mean(aperture), 1.5*mean(aperture))
+  ;        window, 12, xs = 3400, ys = slit_length_pix, ypos = 300, title = 'Cosmic Ray Mask'
+  ;        tv, bytscl(CR_mask, 0, 1)
+          ;stop
       endfor ; frame (Europa frames)
       
       ; Now do the same process for Jupiter
-      Frames = 'hires'+strcompress(Jupiter_frames, /rem)+'.Cleaned.fits'
+      Frames = '\hires'+Jupiter_frames+'.Cleaned.fits'
       for frame = 0, n_elements(Frames)-1 do begin
-
         Jupiter  = mrdfits(Dir+'\Processed\' + Frames[frame], 0, header)
-        subframe = Star[0:4000, order.low_bound:order.hi_bound]
-        s = size(subframe, /dim)
-        trace = fltarr(s[0])
-        for i = 0, s[0] - 1 do begin
-          junk = max(subframe[i,*], loc)
-          trace[i] = loc
-        endfor
-
-        ; Running same gymnastics to try and isolate the trace of the star (or other object w/ bright continuum) in just 1 order
-        trace_old = trace
-        trace2    = trace
-
-        ; Replace the left & right edges that found maxima in higher / lower orders
-        replace_left = trace[0:2000]
-        replace_right= trace[2001:*]
-        replace_left[where(replace_left gt mean(minmax(trace_old)))] = !values.F_nan
-        replace_right[where((replace_right lt mean(minmax(trace_old))) or (replace_right gt 100.) )] = !values.F_nan
-        trace[0:2000] = replace_left
-        trace[2001:*] = replace_right
-        keep1 = where(finite(trace))
-
-        ; fit the linear slope of what's left and reject things that are far from the linear fit.
-        x = findgen(s[0])
-        linear_slope_coeffs = poly_fit( [x[keep1[0]],x[keep1[-1]]], [trace[keep1[0]], trace[keep1[-1]]], 1)
-        linear_fit = POLY( findgen(s[0]), linear_slope_coeffs)
-        trace2[where(abs(trace_old - linear_fit) gt 5., /null)] = !values.F_nan
-        keep2 = where(finite(trace2))
-        coeffs = poly_fit(x[keep2], trace2[keep2], 3)                ; Trace Star position with a 3rd order polynomial
-
-        Jupiter_order_straight = fltarr(s[0], Aperture_width)
+        Jupiter_order_straight = fltarr(s[0], slit_length_pix)
         ;Flat_order_straight = fltarr(s[0], 30)
         for i = 0, s[0] - 1 do begin
-          Jupiter_order_straight[i,*] = interpolate(Jupiter[i,*], order.low_bound + findgen(Aperture_width) - Aperture_width/2. + POLY( i, coeffs))
-          ;flat_order_straight[i,*]    = interpolate(flat[i,*], order.low_bound + findgen(30) - 15. + POLY( i, coeffs))
+          Jupiter_order_straight[i,*] = interpolate(Jupiter[i,*], order.low_bound + findgen(slit_length_pix) - slit_length_pix/2. + POLY( i, coeffs))
         endfor
 
         ;        ; prepare the field field
@@ -577,59 +591,29 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
       endfor ; frames (Jupiter frame number)
 
       save, cube, Jupiter_cube, WL, filename = Dir+'\Processed\' + order.name + '.sav'
-      stop
     endfor ; h (order number)
     stop
   endif
 
 
-  restore, Dir+'\Processed\order_56.sav'
+  ;restore, Dir+'\Processed\order_56.sav'
 
+  if part eq 1.5 then begin ; ==================== FLUX CALIBRATE ALL ORDERS INTO RAYLEIGHS PER ANGSTROM UNITS ===============================
 
-  if part eq 1.5 then begin
-
-; ------------------------------------------------------- calculate the g-value -------------------------------------------------------
-      
-      SOLAR_SPECTRUM_FILE = 'C:\IDL\Generic Model V3\read_write\' + 'hybrid_reference_spectrum_c2021-03-04_with_unc.nc'
-      NCDF_LIST, SOLAR_SPECTRUM_FILE, /VARIABLES, /DIMENSIONS, /GATT, /VATT
-  
-      ID = NCDF_open(SOLAR_SPECTRUM_FILE)
-  
-      SSI = NCDF_VARID(id, 'SSI')
-      NCDF_VARGET, id, SSI, Flux
-  
-      Vac_WL = NCDF_VARID(id, 'Vacuum Wavelength')
-      NCDF_VARGET, id, Vac_WL, WL_nm
-  
-      NCDF_close, ID
-      
-      ; change flux units from W/m^2/nm to photons / (cm^2 s A)
-      ; multiply by ((lambda / hc) / 1 W)  * (1 m^2 / 1e4 cm^2) * (1 nm / 10 A)
-      conversion   = ((WL_nm*1.e-9)/(6.62606957e-34*299792458.D)) * (1./1.e4) * (1./10.)
-      flux = flux * conversion                                                                  ; photons / (cm^2 s A)
-      WL_A = temporary(WL_nm) * 10.
-
-      junk = min(abs(WL_A - 5894.6), Na_ind)
-      junk = min(abs(WL_A - 7680.), K_ind)
-
-        GVALUE, 'Na-D', 12.7059021e3, 4.956350334656, WL_A[Na_ind-9000:Na_ind+9000], Flux[Na_ind-9000:Na_ind+9000], g_Na
-        print, 'g-value for Na D1+D2 using horizons', g_na
-        GVALUE, 'K-D', 12.7059021e3, 4.956350334656, WL_A[k_ind-9000:k_ind+9000], Flux[k_ind-9000:k_ind+9000], g_K
-        print, 'g-value for K D1+D2 using horizons', g_K
     
 ;--------------------------------------------------- Determine Sensitivy for flux calibration ------------------------------------------
 
     ; Compare publications of Jupiter's spectral albedo at disk center
 
     ; absolute brightness: Digitized Plot from Woodman et al. 1979.
-      READCOL,'C:\IDL\Io\Woodman_et_al_1979_plot1.txt', F='A,A', WL_1, Albedo_1, STRINGSKIP = '#', /Silent;wavelength in Angstroms I/F unitless
-      READCOL,'C:\IDL\Io\Woodman_et_al_1979_plot2_new.txt', F='A,A', WL_2, Albedo_2, STRINGSKIP = '#', /Silent ;wavelength in Angstroms I/F unitless
+      READCOL,'Z:\DATA\___Calibration___\Jupiter_Reflectivity\Woodman_et_al_1979_plot1.txt', F='A,A', WL_1, Albedo_1, STRINGSKIP = '#', /Silent;wavelength in Angstroms I/F unitless
+      READCOL,'Z:\DATA\___Calibration___\Jupiter_Reflectivity\Woodman_et_al_1979_plot2_new.txt', F='A,A', WL_2, Albedo_2, STRINGSKIP = '#', /Silent ;wavelength in Angstroms I/F unitless
       Woodman_WL = float([WL_1, WL_2])             ; STITCH THESE TOGETHER
       Woodman_Albedo = Float([albedo_1, albedo_2]) ; STITCH THESE TOGETHER
 
     ; absolute brightness: from Karkoschka (1998) Icarus on the PDS as ID # ESO-J/S/N/U-SPECTROPHOTOMETER-4-V1.0
-      READCOL,'C:\IDL\Io\Karkoschka_1995low.tab', F='X,A,X,A', Karkoschka_WL, Karkoschka_Albedo, STRINGSKIP = '#', /Silent ;wavelength in nm I/F unitless
-      READCOL,'C:\IDL\Io\Karkoschka_1995high.tab', F='X,A,X,A', Karkoschka_WL_2, Karkoschka_Albedo_2, STRINGSKIP = '#', /Silent ;wavelength in Angstroms I/F unitless
+      READCOL,'Z:\DATA\___Calibration___\Jupiter_Reflectivity\Karkoschka_1995low.tab', F='X,A,X,A', Karkoschka_WL, Karkoschka_Albedo, STRINGSKIP = '#', /Silent ;wavelength in nm I/F unitless
+      READCOL,'Z:\DATA\___Calibration___\Jupiter_Reflectivity\Karkoschka_1995high.tab', F='X,A,X,A', Karkoschka_WL_2, Karkoschka_Albedo_2, STRINGSKIP = '#', /Silent ;wavelength in Angstroms I/F unitless
       Karkoschka_WL = float([Karkoschka_WL, Karkoschka_WL_2])             ; STITCH THESE TOGETHER
       Karkoschka_Albedo = Float([Karkoschka_albedo, Karkoschka_albedo_2]) ; STITCH THESE TOGETHER
       Karkoschka_Albedo = Karkoschka_Albedo[sort(Karkoschka_WL)]
@@ -646,7 +630,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
       Karkoschka_Albedo = Karkoschka_Albedo*1.35 ;Scale the "Full disk albedo" to the "Central Meridian Equatorial Absolute Reflectivity"
 
     ; Get the Solar Spectral Irradiance at 1 AU
-      READCOL,'C:\IDL\Io\Kurucz_2005_irradthuwl.dat', F='A,A', WL_nm, flux, STRINGSKIP = '#', /Silent ;flux is in W/m2/nm
+      READCOL,'D:\DATA\___Calibration___\Solar_and_Stellar_Calibration_Spectra\Kurucz\Kurucz_2005_irradthuwl.dat', F='A,A', WL_nm, flux, STRINGSKIP = '#', /Silent ;flux is in W/m2/nm
       start  = where(WL_nm eq '299.100')
       WL_nm = float(WL_nm[start:*])
       flux = float(flux[start:*])
@@ -688,25 +672,20 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
       Jupiter_wrt_Earth_Dopplershift = total(state[0:2]*state[3:5]/sqrt(total(state[0:2]^2)))
       WL_A = WL_A + WL_A*Jupiter_wrt_Earth_Dopplershift/cspice_clight()
 
-
     ; Find the angular radius of Europa 
       cspice_bodvrd, 'Europa', 'RADII', 3, radii
       ang_radius = 206265.*tan(radii[0]/sqrt(total(state[0:2]^2)))
         
+    ; --------------------------------- Flux Calibrate Using Distance and Absolute Spectral Reflectivity of Jupiter -------------------------------------
+    
+    ; D3 smooth_by = 3.6
+    ; C3 smooth_by = 2.1
+    
+        smooth_by = 2.1
 
-; --------------------------------- Flux Calibrate Using Distance and Absolute Spectral Reflectivity of Jupiter -------------------------------------
-
-; D3 smooth_by = 3.6
-; C3 smooth_by = 2.1
-
-      smooth_by = 2.1
-
-      loadct, 0
-      orders_to_calibrate = ['order_60', 'order_46']
-      
-      FOR order = 0, N_elements(orders_to_calibrate) - 1 do begin
-        restore, dir + '\Processed\' + orders_to_calibrate[order]+'.sav' 
-   
+    FOR order = 0, N_elements(orders) - 1 do begin
+      restore, dir + '\Processed\' + orders[order].name+'.sav' 
+ 
       ; Determine the instrumental sensitivity from the expected versus measured flux at Jupiter Disk Center. This should be a smooth function
           expected_flux          = interpol(Rayleighs_per_angstrom, WL_A, WL)       ; move expected flux to the Jovian Doppler-shift, UNITS are R / A
           smoothed_expected_flux = GAUSS_SMOOTH(expected_flux, smooth_by, /edge_truncate) ; this smoothing looks about right for HIRES D3
@@ -715,172 +694,257 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
           s = size(Jupiter_cube, /dim)
           Jupiter_DN_per_s_at_disk_center = median(Jupiter_cube[*, s[1]/2.-1:s[1]/2.+1], dim=2)
           
-      ; the ThAr wavelenth solution isn't always perfect match, which will throw the sensetivity fit.
-      ; cross-correlate versus lag to align them to the nearest pixel, and 
-          lag = [-5,-4,-3,-2,-1,0,1,2,3,4,5]
-          junk = max(C_CORRELATE(Jupiter_DN_per_s_at_disk_center, smoothed_expected_flux, lag), shift_index)
-          smoothed_expected_flux = shift(smoothed_expected_flux,lag[shift_index])       ; shift into alignment
-            
-      ; find the sensetivity   
-          Sensitivity          = Jupiter_DN_per_s_at_disk_center / smoothed_expected_flux ; Sensitivity in (DN / S) / (R / A)
-          ind                  = reverse(sort(Sensitivity))
-          ind                  = ind[0:2000]                                              ; a subset of the top 50% most sensitive points (omits telluric absorp)
-          sens_coeffs          = poly_fit(WL[ind], Sensitivity[ind], 3)
-          fit_Sensitivity      = poly(WL, sens_coeffs)
-          
-          ; inspect 
-;          window, 6, xs=1024, ys=1024
-;          cgplot, WL, sensitivity, /xs, ytitle = '(DN / S) / (R / A)', xtitle = 'angstroms', title = 'measured (black) vs fit (red) sensitivity'
-;          cgplot, WL, fit_Sensitivity, color = 'red', /overplot
-          
-          
-          _2D_sensetivity = rebin(fit_Sensitivity, s[0], s[1])
-          
-          Jupiter_cube = Jupiter_cube / _2D_sensetivity
-          
-          for f = 0, N_elements(Europa_frames)-4 do begin
-            cube[*,*,f] = cube[*,*,f] / _2D_sensetivity ; convert to R / A units
-            print, 'you neglected differential airmass when scaling the sensitivity calculation from Jupiter to Europa!'
-          endfor
-          
-          
+      ; The ThAr wavelength solution isn't always perfect match, which will throw the sensitivity fit.
+      ; Find any subtle Doppler shifting and correct for it. Cross-correlate versus lag to align them to the nearest pixel
+        lag         = indgen(11) - 5
+        correlation = C_CORRELATE(Jupiter_DN_per_s_at_disk_center, smoothed_expected_flux, lag)
+        junk        = max(correlation, corr_ind)
+        shifted_expected_flux = shift(expected_flux, -lag[corr_ind])
+        matched_expected_flux = GAUSS_SMOOTH(shifted_expected_flux, 3.6, /edge_truncate)
+
+      ; Calculate sensitivity and fit the spline, avoiding spectral lines
+        Sensitivity          = Jupiter_DN_per_s_at_disk_center / matched_expected_flux            ; Sensitivity in (DN / S) / (R / A)
+        fit_Sensitivity      = medsmooth(Sensitivity, 100)
+ 
+      ; Inspect the measured sensitivity. If the flat field worked, then this should not be curved with the echelle blaze, but rather a flatish line with some spectral artefacts. 
+        window, 6, xs=1024, ys=1024
+        cgplot, WL, sensitivity, /xs, ytitle = '(DN / S) / (R / A)', xtitle = 'angstroms', title = 'measured (black) vs fit (red) sensitivity'
+        cgplot, WL, fit_Sensitivity, color = 'red', /overplot
+ 
+      ; Calibrate both Jupiter and Europa spectra INTO RAYLEIGHS PER ANGSTROM UNITS for this order
+        _2D_sensitivity = rebin(fit_Sensitivity, s[0], s[1])
+        Jupiter_cube = Jupiter_cube / _2D_sensitivity  
+        for f = 0, N_elements(Europa_frames)-4 do begin
+          cube[*,*,f] = cube[*,*,f] / _2D_sensitivity ; convert to R / A units
+          print, 'you neglected differential airmass when scaling the sensitivity calculation from Jupiter to Europa!'
+        endfor
+      
+      ; In a given row above be sure the answer matches the following notes...
+      ;   -Trafton (1980) does the same thing I do: (page 118 here https://doi.org/10.1016/0019-1035(80)90249-3). A pi on both sides, but needs the factor of 4 to put it in Rayleighs
+      ;   -Brown (1981) (doi:10.1086/158777) quotes 5.6 MR/A at 6300A. I get about 5.9 MR/A if Jupiter were its average distance of 5.2 AU
+      ;   -Brown & Shemansky (1982) doi:10.1086/160515 quote 5.4 MR/A at 6724A. I get 5.7 MR/A if Jupiter were its average distance of 5.2 AU  
+               
+      save, cube, Jupiter_cube, WL, ang_radius, filename = Dir+'\Processed\' + orders[order].name+ '_Flux_Calibrated.sav'  
+      print, 'Flux-calibrated ', orders[order].name
+    endfor  
+  
+  PRINT, 'To Do: did not yet inspect flux calibration of K D and O 6300 orders!' 
+  endif    
+    
+  if part eq 1.6 then begin
+      
+      
+;      ; ------------------------------------------------------- calculate the g-value -------------------------------------------------------
+;
+;    SOLAR_SPECTRUM_FILE = 'Z:\DATA\___Calibration___\Solar_and_Stellar_Calibration_Spectra\Coddington_2022\hybrid_reference_spectrum_c2021-03-04_with_unc.nc'
+;    NCDF_LIST, SOLAR_SPECTRUM_FILE, /VARIABLES, /DIMENSIONS, /GATT, /VATT
+;
+;    ID = NCDF_open(SOLAR_SPECTRUM_FILE)
+;
+;    SSI = NCDF_VARID(id, 'SSI')
+;    NCDF_VARGET, id, SSI, Flux
+;
+;    Vac_WL = NCDF_VARID(id, 'Vacuum Wavelength')
+;    NCDF_VARGET, id, Vac_WL, WL_nm
+;
+;    NCDF_close, ID
+;
+;    ; change flux units from W/m^2/nm to photons / (cm^2 s A)
+;    ; multiply by ((lambda / hc) / 1 W)  * (1 m^2 / 1e4 cm^2) * (1 nm / 10 A)
+;    conversion   = ((WL_nm*1.e-9)/(6.62606957e-34*299792458.D)) * (1./1.e4) * (1./10.)
+;    flux = flux * conversion                                                                  ; photons / (cm^2 s A)
+;    WL_A = temporary(WL_nm) * 10.
+;
+;    junk = min(abs(WL_A - 5894.6), Na_ind)
+;    junk = min(abs(WL_A - 7680.), K_ind)
+;
+;    GVALUE, 'Na-D', 12.7059021e3, 4.956350334656, WL_A[Na_ind-9000:Na_ind+9000], Flux[Na_ind-9000:Na_ind+9000], g_Na
+;    print, 'g-value for Na D1+D2 using horizons', g_na
+;    GVALUE, 'K-D', 12.7059021e3, 4.956350334656, WL_A[k_ind-9000:k_ind+9000], Flux[k_ind-9000:k_ind+9000], g_K
+;    print, 'g-value for K D1+D2 using horizons', g_K
+;      
+        
 ; ============ SUNLIGHT SUBTRACTION. I'm using Europa's on-disk observations as sunlight spectrum by assuming it's perfectly ⋆｡˚ ☁︎ ˚shiny｡⋆｡˚☽˚｡⋆ ========
+         restore, Dir+'\Processed\order_60_Flux_Calibrated.sav'
           
           
-          NS0__   = 0.5*(REFORM(cube[500:900,*,11]+cube[500:900,*,12]))             ; NS orientation on-disk
-          NS10_E  = 0.5*(REFORM(cube[500:900,*,18]+cube[500:900,*,19]))
-          NS20_E  = 0.5*(REFORM(cube[500:900,*,20]+cube[500:900,*,21]))
-          NS10_W  = 0.5*(REFORM(cube[500:900,*,14]+cube[500:900,*,15]))
-          NS20_W  = 0.5*(REFORM(cube[500:900,*,16]+cube[500:900,*,17]))
-          EW0__   = 0.5*(REFORM(cube[500:900,*,0 ]+cube[500:900,*,1 ]))             ; EW orientation on-disk
-          EW10_N  = 0.5*(REFORM(cube[500:900,*,3 ]+cube[500:900,*,4 ]))
-          EW20_N  = 0.5*(REFORM(cube[500:900,*,5 ]+cube[500:900,*,6 ]))
-          EW10_S  = 0.5*(REFORM(cube[500:900,*,7 ]+cube[500:900,*,8 ]))
-          EW20_S  = 0.5*(REFORM(cube[500:900,*,9 ]+cube[500:900,*,10]))
+;          NS0__   = 0.5*(REFORM(cube[500:900,*,11]+cube[500:900,*,12]))             ; NS orientation on-disk
+;          NS10_E  = 0.5*(REFORM(cube[500:900,*,18]+cube[500:900,*,19]))
+;          NS20_E  = 0.5*(REFORM(cube[500:900,*,20]+cube[500:900,*,21]))
+;          NS10_W  = 0.5*(REFORM(cube[500:900,*,14]+cube[500:900,*,15]))
+;          NS20_W  = 0.5*(REFORM(cube[500:900,*,16]+cube[500:900,*,17]))
+;          EW0__   = 0.5*(REFORM(cube[500:900,*,0 ]+cube[500:900,*,1 ]))             ; EW orientation on-disk
+;          EW10_N  = 0.5*(REFORM(cube[500:900,*,3 ]+cube[500:900,*,4 ]))
+;          EW20_N  = 0.5*(REFORM(cube[500:900,*,5 ]+cube[500:900,*,6 ]))
+;          EW10_S  = 0.5*(REFORM(cube[500:900,*,7 ]+cube[500:900,*,8 ]))
+;          EW20_S  = 0.5*(REFORM(cube[500:900,*,9 ]+cube[500:900,*,10]))
+;          
           
-          s = size(NS0__)
-          
-          orientations = fltarr(s[1], s[2], 10)                                     ; there's definitely a better way to do this but whatever
-          orientations[*,*,0] = NS0__ 
-          orientations[*,*,1] = NS10_E
-          orientations[*,*,2] = NS20_E
-          orientations[*,*,3] = NS10_W
-          orientations[*,*,4] = NS20_W
-          orientations[*,*,5] = EW0__ 
-          orientations[*,*,6] = EW10_N
-          orientations[*,*,7] = EW20_N
-          orientations[*,*,8] = EW10_S
-          orientations[*,*,9] = EW20_S
-          
-          labels = ['NS0__','NS10_E','NS20_E','NS10_W','NS20_W','EW0__','EW10_N','EW20_N','EW10_S','EW20_S']
-          
-          sunmax = []
-          newimg    = fltarr(s[1], s[2])
-          sunimg    = fltarr(s[1], s[2])
-          pixelsofsun = 15.
-          
-          
-; --------------------------------------------- Find the Dispersion & Sunlight vs Exosphere Indicies --------------------------------------
-          D2Cen               = 120
-          D1Cen               = 337
-          windowwidth         = 15.
-          spec_1D             = total(NS0__, 2, /Nan)
-          result              = mpfitpeak(findgen(windowwidth*2. + 1), spec_1D[D2cen - windowwidth:D2cen + windowwidth], a, STATUS = STATUS)
-          D2_Solar            = D2cen - windowwidth + a[1]
-          result              = mpfitpeak(findgen(windowwidth*2. + 1), spec_1D[D1cen - windowwidth:D1cen + windowwidth], a, STATUS = STATUS)
-          D1_Solar            = D1cen - windowwidth + a[1]
-          dispersion          = (5895.92424 - 5889.95095) / ( D1_Solar - D2_Solar ) ; A/pixel
-          Europa_D2_pixel     = float(D2_Solar / (dispersion*cspice_clight() / 5889.95095))  ; converted from km/s to pixel units
-          Europa_D1_pixel     = float(D1_Solar / (dispersion*cspice_clight() / 5895.92424))  ; converted from km/s to pixel units
-          
-          ;     Get the pixel indices where the spectrum consists of just scattered sunlight
-          fitindices = where( (abs(findgen(1024) - Europa_D1_pixel) gt 5) and $
-            (abs(findgen(1024) - Europa_D2_pixel) gt 5), /null)                         ; Excludes the sodium emission from Europa
-          
-          FOR i = 0, s[1] - 1 DO BEGIN
-            column = NS0__[i,*]
-            suncol = WHERE(column EQ MAX(column),count)                          ; Finds the sunlight spectrum in each column and puts that row into a 1D array
-            suncol = suncol[0]
-            sunmax = [sunmax, suncol[0]]
-          ENDFOR
-          
-          newpos      = n_elements(NS0__[0,*])/2                      ; Shifting the spectrum to match up with the mean sunlight spectrum location
-          sunlight    = NS0__[*, newpos - pixelsofsun : newpos + pixelsofsun]
-          TV, bytscl(sunlight)
-          sunlight_1d = TOTAL(sunlight, 2, /Nan)
-          
-          P_returned  = fltarr(4,s[2])                  ; Three coefficients + MPFIT's "Status"
-          P_guessed   = Fltarr(3,s[2])                  ; Initial Guess that we throw at MPFIT
-          
-          FOR orientation = 0, N_Elements(orientations[0,0,*]) - 1 DO BEGIN
-            FOR i = 0, s[2] - 1 DO BEGIN
+      NS0__   = 0.5*(REFORM(cube[*,*,11]+cube[*,*,12]))             ; NS orientation on-disk
+      NS10_E  = 0.5*(REFORM(cube[*,*,18]+cube[*,*,19]))
+      NS20_E  = 0.5*(REFORM(cube[*,*,20]+cube[*,*,21]))
+      NS10_W  = 0.5*(REFORM(cube[*,*,14]+cube[*,*,15]))
+      NS20_W  = 0.5*(REFORM(cube[*,*,16]+cube[*,*,17]))
+      EW0__   = 0.5*(REFORM(cube[*,*,0 ]+cube[*,*,1 ]))             ; EW orientation on-disk
+      EW10_N  = 0.5*(REFORM(cube[*,*,3 ]+cube[*,*,4 ]))
+      EW20_N  = 0.5*(REFORM(cube[*,*,5 ]+cube[*,*,6 ]))
+      EW10_S  = 0.5*(REFORM(cube[*,*,7 ]+cube[*,*,8 ]))
+      EW20_S  = 0.5*(REFORM(cube[*,*,9 ]+cube[*,*,10]))
 
-          ; generate an initial guess for multipliciative scaling
-              europa      = orientations[*,*,orientation]
-              row         = europa[*,i]
-              guess_scale = median(row[fitindices] / sunlight_1D[fitindices])
-              row_err     = sqrt(abs(row))
-              
-          ; Fit a y = A*Gauss_smooth(x,C) + B function to the spectrum, where x is the reference solar spectrum
-              p0 = [guess_scale, 0.0, 0.5]                                           ; Guess at initial coefficients
-              parinfo = replicate({value:0., fixed:0, limited:[0,0], limits:[0.,0.]}, n_elements(p0))
-              parinfo.value         = p0
-              ;parinfo[1].fixed      = 1
-              ;parinfo[2].fixed      = 1
-              parinfo[2].limited    = [1, 1]
-              parinfo[2].limits     = [0.0, 20.]
+      s = size(NS0__)
+      
+      orientations = fltarr(s[1], s[2], 10)                         ; there's definitely a better way to do this but whatever
+      orientations[*,*,0] = NS0__ 
+      orientations[*,*,1] = NS10_E
+      orientations[*,*,2] = NS20_E
+      orientations[*,*,3] = NS10_W
+      orientations[*,*,4] = NS20_W
+      orientations[*,*,5] = EW0__ 
+      orientations[*,*,6] = EW10_N
+      orientations[*,*,7] = EW20_N
+      orientations[*,*,8] = EW10_S
+      orientations[*,*,9] = EW20_S
+      
+      labels = ['NS0__','NS10_E','NS20_E','NS10_W','NS20_W','EW0__','EW10_N','EW20_N','EW10_S','EW20_S']
+      
+      sunmax = []
+      newimg    = fltarr(s[1], s[2])
+      sunimg    = fltarr(s[1], s[2])
+      
+      
+          
+      ; --------------------------------------------- Find the Dispersion & Sunlight vs Exosphere Indicies --------------------------------------
+        D2Cen               = 120
+        D1Cen               = 337
+        windowwidth         = 15.
+        spec_1D             = total(NS0__, 2, /Nan)
+        result              = mpfitpeak(findgen(windowwidth*2. + 1), spec_1D[D2cen - windowwidth:D2cen + windowwidth], a, STATUS = STATUS)
+        D2_Solar            = D2cen - windowwidth + a[1]
+        result              = mpfitpeak(findgen(windowwidth*2. + 1), spec_1D[D1cen - windowwidth:D1cen + windowwidth], a, STATUS = STATUS)
+        D1_Solar            = D1cen - windowwidth + a[1]
+        dispersion          = (5895.92424 - 5889.95095) / ( D1_Solar - D2_Solar )          ; A/pixel
+        Europa_D2_pixel     = float(D2_Solar / (dispersion*cspice_clight() / 5889.95095))  ; converted from km/s to pixel units
+        Europa_D1_pixel     = float(D1_Solar / (dispersion*cspice_clight() / 5895.92424))  ; converted from km/s to pixel units
+          
+      ; Get the pixel indices where the spectrum consists of just scattered sunlight
+        fitindices = where( (abs(findgen(1024) - Europa_D1_pixel) gt 5) and $
+                            (abs(findgen(1024) - Europa_D2_pixel) gt 5), /null)            ; Excludes the sodium emission from Europa
+      
+      ; Finds the disk center spectrum in each column and puts that row into a 1D array    
+        FOR i = 0, s[1] - 1 DO BEGIN
+          column = NS0__[i,*]
+          suncol = WHERE(column EQ MAX(column),count)     
+          suncol = suncol[0]
+          sunmax = [sunmax, suncol[0]]
+        ENDFOR
+          
+        ;newpos      = n_elements(NS0__[0,*])/2                      ; Shifting the spectrum to match up with the mean sunlight spectrum location
+        ;sunlight    = NS0__[*, newpos - pixelsofsun : newpos + pixelsofsun]
+        pixelsofsun = 1;3
+        sunlight    = NS0__[*, suncol - pixelsofsun : suncol + pixelsofsun]
+        
+        
+        ;TV, bytscl(sunlight)
+        
+        sunlight_1d = TOTAL(sunlight, 2, /Nan)
+          
+        P_returned  = fltarr(4,s[2])                  ; Three coefficients + MPFIT's "Status"
+        P_guessed   = Fltarr(3,s[2])                  ; Initial Guess that we throw at MPFIT
+          
+        FOR orientation = 0, N_Elements(orientations[0,0,*]) - 1 DO BEGIN
+          FOR i = 0, s[2] - 1 DO BEGIN
 
-              WEIGHTS = 1./(abs(findgen(s[1]) - Europa_D2_pixel))^.4 + 1./(abs(findgen(s[1]) - Europa_D1_pixel))^.4
-              
-              fa = {x:sunlight_1d[fitindices], y:row[fitindices], err:1./weights[fitindices]}
-              p = mpfit('match_scattered_sunlight', p0, PERROR = err_P, functargs=fa, status=status, parinfo=parinfo)
-              P_guessed[*,i]  = p0
-              p_returned[*,i] = [p, status]
-              scaled_sunlight = scale_fit_sunlight(P, sunlight_1d)             ; Puts it into y = A*shift(Gauss_smooth(x,D),C) + B form
-              
-              sunimg[*,i] = scaled_sunlight
-              sub         = guess_scale * sunlight_1d                          ; If you JUST want the multiplicative correction (no scattered sunlight accounted for w mpfit)
-              totsubtrd   = row  - scaled_sunlight                             ; Change back to row - sub to get just the multiplicative factor
-              
-              if i eq suncol then continuum = scaled_sunlight                  ; this saves the non-sun subtracted continuum row so that i can reference it later
-              
-              newimg[*,i] = totsubtrd
-            ENDFOR ; each row of ONE orientation
+        ; generate an initial guess for multipliciative scaling
+            europa      = orientations[*,*,orientation]
+            row         = europa[*,i]
+            guess_scale = median(row[fitindices] / sunlight_1D[fitindices])
+            row_err     = sqrt(abs(row))
             
+        ; Fit a y = A*Gauss_smooth(x,C) + B function to the spectrum, where x is the reference solar spectrum
+            p0 = [guess_scale, 0.0, 0.5]                                           ; Guess at initial coefficients
+            parinfo = replicate({value:0., fixed:0, limited:[0,0], limits:[0.,0.]}, n_elements(p0))
+            parinfo.value         = p0
+            parinfo[0].limited    = [1, 1]
+            parinfo[0].limits     = [0.0, 2.]
             
-; first, i'm going to make a figure comparing non-sun subtracted vs sun subtracted spectra.
+            parinfo[1].limited    = [1, 1]
+            parinfo[1].limits     = [-20.0, 20.]
+            parinfo[2].limited    = [1, 1]
+            parinfo[2].limits     = [0.0, 20.]
+
+            WEIGHTS = 1./(abs(findgen(s[1]) - Europa_D2_pixel))^.4 + 1./(abs(findgen(s[1]) - Europa_D1_pixel))^.4
             
-            P = cglayout([2,2], ygap = 0., oxmargin = [10,10], oymargin = [6,5], xgap = 0.)
-            axis_format = {XTicklen:-.01, yticklen:-0.01 }
-            cgPS_Open, filename = 'C:\Users\elovett\EuropaResearch\Europa_Flyby\Sun Subtract Comparisons\'+orders_to_calibrate[order]+'_'+labels[orientation]+'_suncomparison.eps', /ENCAPSULATED, xsize = 11, ysize = 6
+            ;fa = {x:sunlight_1d[fitindices], y:row[fitindices], err:1./weights[fitindices]}
+            fa = {x:sunlight_1d[fitindices], y:row[fitindices], err:sqrt(abs(row[fitindices]))}
+            p = mpfit('match_scattered_sunlight', p0, PERROR = err_P, functargs=fa, status=status, parinfo=parinfo)
+            P_guessed[*,i]  = p0
+            p_returned[*,i] = [p, status]
+            scaled_sunlight = scale_fit_sunlight(P, sunlight_1d)             ; Puts it into y = A*shift(Gauss_smooth(x,D),C) + B form
+            if status ne 1 then stop
+            if i eq 18 then begin
+              cgplot, WL, Row
+              cgplot, WL, scaled_sunlight, color = 'red', /overplot
+              print, p_returned[*,i]
+              stop
+            endif
+            
+            sunimg[*,i] = scaled_sunlight
+            sub         = guess_scale * sunlight_1d                          ; If you JUST want the multiplicative correction (no scattered sunlight accounted for w mpfit)
+            totsubtrd   = row  - scaled_sunlight                             ; Change back to row - sub to get just the multiplicative factor
+            
+            if i eq suncol then continuum = scaled_sunlight                  ; this saves the non-sun subtracted continuum row so that i can reference it later
+            
+            newimg[*,i] = totsubtrd
+          ENDFOR ; each row of ONE orientation
+          
+        ; Compare raw vs sun-subtracted spectra.
+          xr    = [5888.1, 5898.5]
+          junk  = min(abs(xr[0]- WL), index0)
+          junk  = min(abs(xr[1]- WL), index1)         
+          WL_xr = [index0, index1]
+
+          P  = cglayout([2,2], ygap = 0., oxmargin = [10,10], oymargin = [8,5], xgap = 0.)
+          plate_scale = 0.358
+          yr = [-(suncol*plate_scale/ang_radius), ((s[2]-suncol)*plate_scale/ang_radius)]
+          
+          cgPS_Open, filename = 'Z:\DATA\Keck\Europa Na\HIRES_20220928\Figures\'+orders[2].name+'_'+labels[orientation]+'_suncomparison.eps', $
+            /ENCAPSULATED, xsize = 10, ysize = 6
             !P.font=1
             loadct, 3
             device, SET_FONT = 'Helvetica Bold', /TT_FONT
             
-            
             title = 'HIRES 2022-09-29 : '+labels[orientation]
 
-; non-sunlight subtracted on the left hand side
-             
-            cgplot, wl[500:900], europa[*,suncol], /xs, xr = [wl[500], wl[900]], pos = p[*,0], xtickformat = '(A1)', $
-              title=labels[orientation]+' Not Sun-Subtracted', ytitle = 'Rayleighs / ' + cgsymbol('Angstrom')
-              
-            cgplot, wl[500:900], continuum, /xs, xr = [wl[500], wl[900]], pos = p[*,0], xtickformat = '(A1)', $
-              title=title, ytitle = 'Rayleighs / ' + cgsymbol('Angstrom'), /overplot, color='red'
+            ; non-sunlight subtracted on the left hand side
+              cgplot, wl, europa[*,suncol], /xs, xr = xr, pos = p[*,0], xtickformat = '(A1)', $
+                title=labels[orientation]+' Raw', ytitle = 'Rayleighs / ' + cgsymbol('Angstrom')
+                
+              cgplot, wl, continuum, /overplot, color='red'
             
-            cgimage, orientations[*,*,orientation], minv=0.75*mean(orientations[*,*,orientation]), maxv=3.0*mean(orientations[*,*,orientation]), /axes, xr = [wl[500], wl[900]], pos = p[*,2], yr = [-(14.*.5/ang_radius), (14.*.5/ang_radius)]+.4, /noerase, $
-              ytit = 'Europa Radii', xtitle = 'Angstroms', AXKEYWORDS = axis_format
+              cgtext, .29, .58, 'Above disk', color = 'black', /normal
+              cgtext, .29, .55, 'Fit Reflectance', color = 'red', /normal 
+            
+              axis_format = {XTicklen:-.01, yticklen:-0.01 }
+              cgimage, orientations[index0:index1,*,orientation], minv=0.75*mean(orientations[*,*,orientation]), maxv=3.0*mean(orientations[*,*,orientation]), $
+                /axes, xr = xr, pos = p[*,2], /noerase, $
+                ytit = 'Europa Radii', xtitle = 'Angstroms', AXKEYWORDS = axis_format, yr = yr
+                
+              cgcolorbar, /vertical, POSITION=[0.06, p[1,2], 0.08, p[3,2]], range = minmax(orientations[*,*,orientation])
+                
+            ; sunlight subtracted on the right hand side              
+              cgplot, wl, newimg[*,suncol], /xs, xr = xr, pos = p[*,1], xtickformat = '(A1)', $               
+                ytickformat = '(A1)', /noerase, title=labels[orientation]+' Sun-Subtracted'
+              cgaxis, yaxis = 1, ytitle = 'Rayleighs / ' + cgsymbol('Angstrom'), ystyle=1
+  
+              axis_format = {XTicklen:-.01, yticklen:-0.01, ystyle:5}
+              cgimage, newimg[index0:index1, *], minv=-5.e3, maxv=5.e3, /axes, xr = xr, pos = p[*,3], yr = yr, /noerase, $
+                xtitle = 'Angstroms', AXKEYWORDS = axis_format
+              cgaxis, yaxis = 1, ytit = 'Europa Radii', yr = yr, ystyle=1, yticklen=-0.01
               
-; sunlight subtracted on the right hand side              
-              
-            cgplot, wl[500:900], newimg[*,suncol], /xs, xr = [wl[500], wl[900]], pos = p[*,1], xtickformat = '(A1)', ytickformat = '(A1)', /noerase, title=labels[orientation]+' Sun-Subtracted'
-            cgaxis, yaxis=1
+              cgcolorbar, /vertical, POSITION=[0.96, p[1,3], 0.98, p[3,3]], range = [-5.e3,5.e3]
+         cgps_Close
 
-            cgimage, newimg, minv=-5.e3, maxv=5.e3, /axes, xr = [wl[500], wl[900]], pos = p[*,3], yr = [-(14.*.5/ang_radius), (14.*.5/ang_radius)]+.4, /noerase, $
-              xtitle = 'Angstroms', AXKEYWORDS = axis_format
-            
-            cgps_Close
-            
+         stop   
             
             
             
@@ -951,8 +1015,6 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
             
             ;  cgplot, findgen(36), profile*angstrom_per_pixel * 1.5, title = 'East-West 20 R!DEuropa!N North', /ynozero, /noerase, ytitle = 'Rayleighs'
             
-
-    endfor
     
     stop
 ;    profile = total(_10_RsubE_east_NS[127:134,*], 1)
