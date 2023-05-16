@@ -58,7 +58,6 @@ end
 PRO Keck_Europa_Flyby, part = part, dir = dir
 
   case dir of
-    ;'C:\DATA\HIRES_20220928': begin
     'Z:\DATA\Keck\Europa Na\HIRES_20220928': begin
       ;Europa           = '1003517' ; aka C/2017 K2 (PANSTARRS)
       biases          = string(indgen(10)+4, format='(I4.4)')
@@ -196,10 +195,11 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
 ; -------------------------------------------------------  Reduce Europa frames ----------------------------------------------------
 
 ;    READCOL,'D:\DATA\___Calibration___\Carl_centrifugal_equator.txt', torus_deg, torus_lat_out, skipline = 1, /Silent
-    Europa_array    = fltarr(2139, 4096, n_elements(Europa_frames))
-    ET_array        = dblarr(N_elements(Europa_frames))
-    exptime_array   = fltarr(N_elements(Europa_frames))
-    torus_lat_array = fltarr(N_elements(Europa_frames))
+    Europa_array               = fltarr(2139, 4096, n_elements(Europa_frames))
+    ET_array                   = dblarr(N_elements(Europa_frames))
+    exptime_array              = fltarr(N_elements(Europa_frames))
+    torus_lat_array            = fltarr(N_elements(Europa_frames))
+    Solar_Well_2_Europa_Dshift = fltarr(N_elements(Europa_frames))
     for i = 0, n_elements(Europa_frames)-1 do begin
       filename = '\hires' + Europa_frames[i] + '.fits'
       Europa_array[*,*,i] = [mrdfits(Dir+'\hires' + Europa_frames[i] + '.fits', 3, header, /fscale), $
@@ -214,13 +214,17 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
       Europa_array[*,*,i] = Europa_array[*,*,i] / float(Sxpar(header, 'EXPTIME')) ; normalize to 1 second expsosure time
       
       ; find the instantaneous Earth-Europa Doppler Shift
-      cspice_UTC2ET, sxpar(header, 'DATE_BEG'), ET
-      ET_mid_exposure = ET + float(sxpar(header, 'EXPTIME'))/2.
-      cspice_et2utc, ET_mid_exposure, 'C', 0, utcstr
-      ;stop
-      cspice_spkezr, 'Europa', ET_mid_exposure, 'J2000', 'LT+S', 'Earth', Europa_Earth_State, ltime
-      theta  = cspice_vsep(Europa_Earth_state[0:2], Europa_Earth_state[3:5])
-      Europa_wrt_Earth_Dopplershift = cos(theta) * norm(Europa_Earth_State[3:5])
+        cspice_UTC2ET, sxpar(header, 'DATE_BEG'), ET
+        ET_mid_exposure = ET + float(sxpar(header, 'EXPTIME'))/2.
+        cspice_et2utc, ET_mid_exposure, 'C', 0, utcstr
+        cspice_spkezr, 'Europa', ET_mid_exposure, 'J2000', 'LT+S', 'Earth', Europa_Earth_State, ltime
+        theta  = cspice_vsep(Europa_Earth_state[0:2], Europa_Earth_state[3:5])
+        Europa_wrt_Earth_Dopplershift = cos(theta) * norm(Europa_Earth_State[3:5])
+
+      ; Find the Dopplershift between the solar wells and Europa's emission lines.
+        cspice_spkezr, 'Sun', ET_mid_exposure - ltime, 'J2000', 'LT+S', 'Europa', Sun_Europa_State, ltime_up_leg
+        theta  = cspice_vsep(Sun_Europa_State[0:2], Sun_Europa_State[3:5])
+        Europa_wrt_Sun_Dopplershift = -1. * cos(theta) * norm(Sun_Europa_State[3:5]) ; km / s
 
       ;      cspice_subpnt, 'Near point: ellipsoid', 'Jupiter', ET_mid_exposure - ltime, 'IAU_Jupiter', 'None', Europa, Sub_Europa, trgepc, srfvec ;get sub solar point in cartesian IAU Jupiter coords
       ;      cspice_bodvrd, 'Jupiter', 'RADII', 3, radii ;get Jupiter shape constants
@@ -230,23 +234,27 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
       ;      obspos = Sub_Europa - srfvec
       ;cspice_recpgr, 'Jupiter', obspos, re, f, Europa_SysIII, Europa_SysIII_LATITUDE, opgalt
       ;torus_lat_array[i] = interpol(torus_lat_out, reverse(torus_deg), Europa_SysIII*!radeg) ; Europa's latitude in the torus using Phil Phipp's arrays
-      ET_array[i]        = ET_mid_exposure
-      exptime_array[i]   = float(sxpar(header, 'EXPTIME'))
+      
+      ET_array[i]                   = ET_mid_exposure
+      exptime_array[i]              = float(sxpar(header, 'EXPTIME'))
+      Solar_Well_2_Europa_Dshift[i] = Europa_wrt_Sun_Dopplershift
 
       ;SXADDPAR, header, 'Sys3_Lon',  Europa_SysIII*!radeg,          ' Sub-Europa System III Longitude'
       ;SXADDPAR, header, 'Sys3_Lat',  Europa_SysIII_LATITUDE*!radeg, ' Sub-Europa System III Latitude'
       ;SXADDPAR, header, 'Torus_Lat', torus_lat_array[i],          ' Torus Latitude WRT the Europa JRM09 Dipole Approx'
       SXADDPAR, header, 'Europa_DOP',  Europa_wrt_Earth_Dopplershift, ' Europa-Earth V_radial in km/s (mid exposure)'
       SXADDPAR, header, 'UTC_Mid', utcstr,                        ' UTC time (mid-exposure)'
-      ;SXADDPAR, Europa_header, 'T_PSHADO', (ET_mid_exposure-PenUmbra_ET) / 60., 'Minutes since Penumbral ingress'
-      ;SXADDPAR, Europa_header, 'T_USHADO', (ET_mid_exposure-Umbra_ET) / 60., 'Minutes since Umbral ingress'    '
 
       write_file = rotate(transpose(reform(Europa_array[*,*,i])),7)
       SXADDPAR, Header, 'BZERO', 0.0
       MWRFITS, write_file, Dir+'\Processed' + new_filename + '.Cleaned.fits', header, /create, /silent
       
     endfor
-    Europa_Airglow_params = create_struct( 'torus_lat', torus_lat_array, 'ET', ET_array, 'ExpTime', exptime_array, Europa_Airglow_params )
+    Europa_Airglow_params = create_struct( 'torus_lat', torus_lat_array, $
+                                           'ET', ET_array, $
+                                           'ExpTime', exptime_array, $
+                                           'Sun2Euro', Solar_Well_2_Europa_Dshift, $
+                                           Europa_Airglow_params )
     print, 'XD Angle:', Sxpar(header, 'XDANGL'), ' Echelle Angle:', Sxpar(header, 'ECHANGL')
     save, Europa_Airglow_params, filename = Dir+'\Processed\Europa_Airglow_params.sav'
     stop
@@ -732,8 +740,8 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
   endif    
     
   if part eq 1.6 then begin
-      
-      
+      restore, Dir+'\Processed\Europa_Airglow_params.sav'
+      help, Europa_Airglow_params
 ;      ; ------------------------------------------------------- calculate the g-value -------------------------------------------------------
 ;
 ;    SOLAR_SPECTRUM_FILE = 'Z:\DATA\___Calibration___\Solar_and_Stellar_Calibration_Spectra\Coddington_2022\hybrid_reference_spectrum_c2021-03-04_with_unc.nc'
@@ -765,6 +773,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
 ;      
         
 ; ============ SUNLIGHT SUBTRACTION. I'm using Europa's on-disk observations as sunlight spectrum by assuming it's perfectly ⋆｡˚ ☁︎ ˚shiny｡⋆｡˚☽˚｡⋆ ========
+         
          restore, Dir+'\Processed\order_60_Flux_Calibrated.sav'
           
           
@@ -779,6 +788,9 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
 ;          EW10_S  = 0.5*(REFORM(cube[500:900,*,7 ]+cube[500:900,*,8 ]))
 ;          EW20_S  = 0.5*(REFORM(cube[500:900,*,9 ]+cube[500:900,*,10]))
 ;          
+
+
+
           
       NS0__   = 0.5*(REFORM(cube[*,*,11]+cube[*,*,12]))             ; NS orientation on-disk
       NS10_E  = 0.5*(REFORM(cube[*,*,18]+cube[*,*,19]))
@@ -791,7 +803,9 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
       EW10_S  = 0.5*(REFORM(cube[*,*,7 ]+cube[*,*,8 ]))
       EW20_S  = 0.5*(REFORM(cube[*,*,9 ]+cube[*,*,10]))
 
-      s = size(NS0__)
+      ; we'll use NS0 only for now and that's the 12th index in the spectra we observed...
+        sun2europa = Europa_Airglow_params.sun2euro[12]
+        s = size(NS0__)
       
       orientations = fltarr(s[1], s[2], 10)                         ; there's definitely a better way to do this but whatever
       orientations[*,*,0] = NS0__ 
@@ -814,21 +828,28 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
       
           
       ; --------------------------------------------- Find the Dispersion & Sunlight vs Exosphere Indicies --------------------------------------
-        D2Cen               = 120
-        D1Cen               = 337
-        windowwidth         = 15.
+        D2Cen               = 619
+        D1Cen               = 836
+        
+        windowwidth         = 30.
         spec_1D             = total(NS0__, 2, /Nan)
         result              = mpfitpeak(findgen(windowwidth*2. + 1), spec_1D[D2cen - windowwidth:D2cen + windowwidth], a, STATUS = STATUS)
         D2_Solar            = D2cen - windowwidth + a[1]
         result              = mpfitpeak(findgen(windowwidth*2. + 1), spec_1D[D1cen - windowwidth:D1cen + windowwidth], a, STATUS = STATUS)
         D1_Solar            = D1cen - windowwidth + a[1]
         dispersion          = (5895.92424 - 5889.95095) / ( D1_Solar - D2_Solar )          ; A/pixel
-        Europa_D2_pixel     = float(D2_Solar / (dispersion*cspice_clight() / 5889.95095))  ; converted from km/s to pixel units
-        Europa_D1_pixel     = float(D1_Solar / (dispersion*cspice_clight() / 5895.92424))  ; converted from km/s to pixel units
+        
+        d2_sep              = sun2europa * 5889.95095 / (cspice_clight() * dispersion) ; # of pixels between solar wells and Europa's emission
+        d1_sep              = sun2europa * 5895.92424 / (cspice_clight() * dispersion) ; # of pixels between solar wells and Europa's emission
+        
+        Europa_D2_pixel     = D2_Solar + D2_sep
+        Europa_D1_pixel     = D1_Solar + D1_sep
           
       ; Get the pixel indices where the spectrum consists of just scattered sunlight
-        fitindices = where( (abs(findgen(1024) - Europa_D1_pixel) gt 5) and $
-                            (abs(findgen(1024) - Europa_D2_pixel) gt 5), /null)            ; Excludes the sodium emission from Europa
+        center     = round((Europa_D1_pixel + Europa_D2_pixel) / 2.)
+        fitindices = where( (abs(center - 200 + findgen(400) - Europa_D1_pixel) gt 5) and $
+                            (abs(center - 200 + findgen(400) - Europa_D2_pixel) gt 5), /null)            ; Excludes the sodium emission from Europa
+        fitindices = fitindices + center - 200
       
       ; Finds the disk center spectrum in each column and puts that row into a 1D array    
         FOR i = 0, s[1] - 1 DO BEGIN
@@ -880,11 +901,13 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
             P_guessed[*,i]  = p0
             p_returned[*,i] = [p, status]
             scaled_sunlight = scale_fit_sunlight(P, sunlight_1d)             ; Puts it into y = A*shift(Gauss_smooth(x,D),C) + B form
-            if status ne 1 then stop
+            ;if status ne 1 then continue ;stop
             if i eq 18 then begin
-              cgplot, WL, Row
-              cgplot, WL, scaled_sunlight, color = 'red', /overplot
-              print, p_returned[*,i]
+              window, 0
+              cgplot, WL, Row, xr = [5888., 5898]
+              cgplot, WL[fitindices], Row[fitindices], psym =5, color = 'green', /overplot
+              ;cgplot, WL, scaled_sunlight, color = 'red', /overplot
+              ;print, p_returned[*,i]
               stop
             endif
             
@@ -893,6 +916,9 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
             totsubtrd   = row  - scaled_sunlight                             ; Change back to row - sub to get just the multiplicative factor
             
             if i eq suncol then continuum = scaled_sunlight                  ; this saves the non-sun subtracted continuum row so that i can reference it later
+            
+            qualitymetric = stddev(totsubtrd[fitindices]) / total(row) 
+            
             
             newimg[*,i] = totsubtrd
           ENDFOR ; each row of ONE orientation
