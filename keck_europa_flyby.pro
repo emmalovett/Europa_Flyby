@@ -871,7 +871,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
           
         P_returned  = fltarr(4,s[2])                  ; Three coefficients + MPFIT's "Status"
         P_guessed   = Fltarr(3,s[2])                  ; Initial Guess that we throw at MPFIT
-          
+          qual = []
         FOR orientation = 0, N_Elements(orientations[0,0,*]) - 1 DO BEGIN
           FOR i = 0, s[2] - 1 DO BEGIN
 
@@ -897,7 +897,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
             
             ;fa = {x:sunlight_1d[fitindices], y:row[fitindices], err:1./weights[fitindices]}
             fa = {x:sunlight_1d[fitindices], y:row[fitindices], err:sqrt(abs(row[fitindices]))}
-            p = mpfit('match_scattered_sunlight', p0, PERROR = err_P, functargs=fa, status=status, parinfo=parinfo)
+            p = mpfit('match_scattered_sunlight', p0, PERROR = err_P, functargs=fa, status=status, parinfo=parinfo, quiet=quiet)
             P_guessed[*,i]  = p0
             p_returned[*,i] = [p, status]
             scaled_sunlight = scale_fit_sunlight(P, sunlight_1d)             ; Puts it into y = A*shift(Gauss_smooth(x,D),C) + B form
@@ -906,9 +906,8 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
               window, 0
               cgplot, WL, Row, xr = [5888., 5898]
               cgplot, WL[fitindices], Row[fitindices], psym =5, color = 'green', /overplot
-              ;cgplot, WL, scaled_sunlight, color = 'red', /overplot
-              ;print, p_returned[*,i]
-              stop
+              cgplot, WL, scaled_sunlight, color = 'red', /overplot
+              print, p_returned[*,i]
             endif
             
             sunimg[*,i] = scaled_sunlight
@@ -917,8 +916,8 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
             
             if i eq suncol then continuum = scaled_sunlight                  ; this saves the non-sun subtracted continuum row so that i can reference it later
             
-            qualitymetric = stddev(totsubtrd[fitindices]) / total(row) 
-            
+            qualitymetric = stddev(totsubtrd[fitindices]) / total(row)
+            if qualitymetric lt 2.0E-05 then totsubtrd = 0.                  ; sets threshold and gets rid of sunlight over disk
             
             newimg[*,i] = totsubtrd
           ENDFOR ; each row of ONE orientation
@@ -958,7 +957,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
               cgcolorbar, /vertical, POSITION=[0.06, p[1,2], 0.08, p[3,2]], range = minmax(orientations[*,*,orientation])
                 
             ; sunlight subtracted on the right hand side              
-              cgplot, wl, newimg[*,suncol], /xs, xr = xr, pos = p[*,1], xtickformat = '(A1)', $               
+              cgplot, wl, total(newimg, 2), /xs, xr = xr, pos = p[*,1], xtickformat = '(A1)', $               
                 ytickformat = '(A1)', /noerase, title=labels[orientation]+' Sun-Subtracted'
               cgaxis, yaxis = 1, ytitle = 'Rayleighs / ' + cgsymbol('Angstrom'), ystyle=1
   
@@ -971,8 +970,6 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
          cgps_Close
 
          stop   
-            
-            
             
             
 ; Now, creating the plots of brightness for each order of sodium and potassium.
