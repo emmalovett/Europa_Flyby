@@ -906,10 +906,10 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
     P_guessed   = Fltarr(3,s[2])                  ; Initial Guess that we throw at MPFIT
     
     
-    FOR orientation = 2, N_Elements(orientations[0,0,*]) - 1 DO BEGIN
+    FOR orientation = 0, N_Elements(orientations[0,0,*]) - 1 DO BEGIN
       mpfitD2emission = []
       mpfitD1emission = []
-      
+      dont_include    = []
       FOR i = 0, s[2] - 1 DO BEGIN
 
     ; generate an initial guess for multipliciative scaling
@@ -955,19 +955,8 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         sunimg[*,i] = scaled_sunlight
         sub         = guess_scale * sunlight_1d                          ; If you JUST want the multiplicative correction (no scattered sunlight accounted for w mpfit)
         totsubtrd   = row  - scaled_sunlight                             ; Change back to row - sub to get just the multiplicative factor
-        
         if i eq suncol then continuum = scaled_sunlight                  ; this saves the non-sun subtracted continuum row so that i can reference it later
-        qualitymetric = 0
-        if (order.name eq 'order_60') and (orientation eq 0) or (orientation eq 5) then begin
-          qualitymetric = stddev(totsubtrd[fitindices]) / total(row)
-          if qualitymetric lt 2.0E-05 then begin
-            totsubtrd = fltarr(4001)                                       ; sets threshold and gets rid of sunlight over disk
-            ;continue                                                      ; include the continue if you do not want to include blocked out continuum
-          endif
-        endif
-        eurimg[*,i]  = totsubtrd
-        ;continue
-
+        
 ; for each row, fit a gaussian to the D1 and D2 lines. find area under curve --> emission!
         windowwidth         = 30.
         
@@ -977,75 +966,51 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         cloud_ind1        = where( abs(wl - wl[D1cen]) lt 1.5 , /NULL)
         cloud_ind2        = where( abs(wl - wl[D2cen]) lt 1.5, /NULL)
 
-;;;;;;; this is me trying to subtract io cloud...not working well. first, i block out the europa emission and then fit the io cloud to a gaussian.
-;;;;;;; i then add the europa emission back to the row and subtract the io cloud gaussian from the row. this doesn't work for all files.
-
-        dummy_row = totsubtrd
-        dummy_row[LSF_fitting_ind1] = !values.F_nan
-        dummy_row[LSF_fitting_ind2] = !values.F_nan
+;;;;;;; this is me trying to subtract io cloud...not working well. first, i block out the europa emission & continuum and then interpolate over these blocked out regions.
+;;;;;;; i then subtract this "fake" io background from the og image and add the europa emission back to the row. this doesn't work for all files.
+  
+        qualitymetric = 0
+        qualitymetric = stddev(totsubtrd[fitindices]) / total(row)
+        if qualitymetric lt 2.0E-05 then begin
+          totsubtrd = !values.F_nan;fltarr(4001)                                       ; sets threshold and gets rid of sunlight over disk
+          dont_include = [dont_include, i]
+          ;continue                                                      ; include the continue if you do not want to include blocked out continuum
+        endif
+        eurimg[*,i]  = totsubtrd
+      endfor
+      meanimg = median(eurimg, dim=2)
+      meanimg[LSF_fitting_ind1] = !values.F_nan                                                 ; first, i'm masking out europa's emission (continuum is already masked out)
+      meanimg[LSF_fitting_ind2] = !values.F_nan
+      fakeio = interpol(meanimg, WL, WL, /NAN)
+      
+      for i = 0, s[2] - 1 DO BEGIN
+        dummy_row = eurimg[*,i]
+;        dummy_row[LSF_fitting_ind1] = !values.F_nan                                                 ; first, i'm masking out europa's emission (continuum is already masked out)
+;        dummy_row[LSF_fitting_ind2] = !values.F_nan
+        if max(dummy_row) eq 0. then scaled_row = dummy_row
+        if max(dummy_row) ne 0. then scaled_row = dummy_row * (max(meanimg) / max(dummy_row))                                     ; scales row to the spatially resolved mean of sunlight-subtracted image
         
         if order_index eq 2 then xr    = [5888.1, 5898.5]
         junk  = min(abs(xr[0]- WL), index0)
         junk  = min(abs(xr[1]- WL), index1)
-;;        
-        guess_peak       = max(dummy_row[cloud_ind1], loc)                                     ; initial guesses [amplitude, peak centroid, hwhm, vert shift]
-        ;loc              = (D1cen - D2cen) + loc                                                        ; THIS LINE IS FUCKING ME UP
-        guess_low        = min(dummy_row[cloud_ind1], minloc)
         
-        fakeio = interpol(dummy_row, WL, WL, /NAN)
+        no_io = dummy_row - fakeio
         
         window, 5, title='D1 io sub'
-        cgplot, WL[index0:index1], dummy_row[index0:index1]
+        cgplot, WL[index0:index1], dummy_row[index0:index1], yr= [-3000.,10000.]
         cgplot, wl[index0:index1], fakeio[index0:index1], /overplot, color='red', psym=12
-        
-        dummy_row[LSF_fitting_ind1] = totsubtrd[LSF_fitting_ind1]
-        dummy_row[LSF_fitting_ind2] = totsubtrd[LSF_fitting_ind2]
-        noIo = dummy_row - fakeio
-        totsubtrd = noIo
+;        
+;        no_io[LSF_fitting_ind1] = totsubtrd[LSF_fitting_ind1]
+;        no_io[LSF_fitting_ind2] = totsubtrd[LSF_fitting_ind2]
+;        noIo = scaled_row - fakeio
+        totsubtrd = no_Io
+        if dummy_row[0] eq !values.F_NAN then totsubtrd = !values.F_NAN
+        if dummy_row[0] eq !values.F_nan then continue
         cgplot, WL[index0:index1], totsubtrd[index0:index1], /overplot, color='blue'
-        stop
+        ;cgplot, WL[index0:index1], scaled_row[index0:index1], /overplot, color='green'
         newimg[*,i] = totsubtrd
         
-;        io_emit          = { x:wl[cloud_ind1], y:dummy_row[cloud_ind1], err:1./sqrt(100.+abs(dummy_row[cloud_ind1])) }
-;        pD1              = [abs(guess_peak-(guess_low)), io_emit.x[loc-10.], 0.7, median(totsubtrd[cloud_ind2[-1]:cloud_ind1[0]])]
-        
-;        parinfo = replicate({value:0., fixed:0, limited:[0,0], limits:[0.,0.]}, n_elements(pD1))
-;        parinfo.value         = pD1
-;        parinfo[0].limited    = [1, 1]
-;        parinfo[0].limits     = [0.0, abs(guess_peak-(guess_low))]                             ; amplitude
-;        parinfo[1].limited    = [1, 1]
-;        parinfo[1].limits     = [0, io_emit.x[loc]]                                         ; centroid location
-;        parinfo[2].limited    = [1, 1]
-;        parinfo[2].limits     = [0, 1.0]                                                       ; HWHM
-;        parinfo[3].limited    = [1, 1]
-;        parinfo[3].limits     = [guess_low, median(dummy_row[cloud_ind1])]                     ; vertical shift
-        
-        ;ioD1_gauss            = mpfit('Gaussian_for_MPFIT', pD1, funct=io_emit, parinfo=parinfo, STATUS = Did_it_work)
-        ;ioD1_gauss            = SPLINE(io_emit.x, io_emit.y, findgen(n_elements(io_emit.x))/10.+2.)
-        ;stop
-; Inspect:
-;        window, 6, title='D1 io cloud'
-;        cgplot, io_emit.x, io_emit.y, err_yhigh = io_emit.err, err_ylow = io_emit.err
-;        cgplot, io_emit.x, gaussian(io_emit.x, ioD1_gauss), /overplot, color='red'
-;        cgplot, dummy_row[cloud_ind1]
-;        cgplot, gaussian(io_emit.x, ioD1_gauss), /overplot, color='red'
-
-;        dummy_row[LSF_fitting_ind1] = totsubtrd[LSF_fitting_ind1]
-;        noIoD1 = dummy_row[cloud_ind1] - gaussian(io_emit.x, ioD1_gauss)
-;        totsubtrd[cloud_ind1] = noIoD1
-;        cgplot, io_emit.x, totsubtrd[cloud_ind1], /overplot, color='blue'
-        
-; Inspect:
-;        window, 5, title='D1 io sub'
-;        cgplot, WL[cloud_ind1], dummy_row[cloud_ind1]
-;        cgplot, wl[cloud_ind1], fakeio[cloud_ind1], /overplot, color='red', psym=12
-;        
-;        dummy_row[LSF_fitting_ind1] = totsubtrd[LSF_fitting_ind1]
-;        noIoD1 = dummy_row - fakeio
-;        totsubtrd = noIoD1
-;        cgplot, WL[cloud_ind1], totsubtrd[cloud_ind1], /overplot, color='blue'
-        
-;; now that the D1 io cloud is subtracted, fit the emission
+;; now that the io cloud is subtracted, fit the emission
         
         guess_peak       = max(totsubtrd[LSF_fitting_ind1], loc)                                     ; initial guesses [amplitude, peak centroid, hwhm]
         guess_low        = min(totsubtrd[LSF_fitting_ind1], minloc)
@@ -1069,9 +1034,9 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         mpfitD1emission       = [mpfitD1emission, D1_area]
         
         ; Inspect:
-        window, 3, title='D1'
-        cgplot, D1fa.x, D1fa.y, err_yhigh = D1fa.err, err_ylow = D1fa.err
-        cgplot, D1fa.x, gaussian(D1fa.x, a), /overplot, color='red'
+;        window, 3, title='D1'
+;        cgplot, D1fa.x, D1fa.y, err_yhigh = D1fa.err, err_ylow = D1fa.err
+;        cgplot, D1fa.x, gaussian(D1fa.x, a), /overplot, color='red'
         
 ; ---------------------------------------------------- Na D2 line -------------------------------------------------------- 
         
@@ -1097,36 +1062,38 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         mpfitD2emission       = [mpfitD2emission, D2_area]
 
         ; Inspect:
-        window, 2, title='D2'
-        cgplot, D2fa.x, D2fa.y, err_yhigh = D2fa.err, err_ylow = D2fa.err
-        cgplot, D2fa.x, gaussian(D2fa.x, a), /overplot, color='red'                                         ; all plots in DN/s
+;        window, 2, title='D2'
+;        cgplot, D2fa.x, D2fa.y, err_yhigh = D2fa.err, err_ylow = D2fa.err
+;        cgplot, D2fa.x, gaussian(D2fa.x, a), /overplot, color='red'                                         ; all plots in DN/s
       ENDFOR ; each row of ONE orientation
       
       window, 0
       loadct, 3
       cgimage, newimg[index0:index1, *], minv=-1e4, maxv=1e4
+      window, 1
+      cgplot, wl[index0:index1], total(newimg[index0:index1, *], 2, /nan)
       
       plate_scale = 0.358
       yr = [-(suncol*plate_scale/ang_radius), ((s[2]-suncol)*plate_scale/ang_radius)]
-      
-      window, 1, title='D1 mpfit'
-      cgplot, mpfitD1emission, xr=[0,n_elements(mpfitD1emission)], xtickformat='(A1)'
-      cgaxis, xaxis = 0, xtit = 'Europa Radii', xr = yr, xstyle=1, xticklen=-0.01
-      window, 2, title='D2 mpfit'
-      cgplot, mpfitD2emission, xr=[0,n_elements(mpfitD2emission)], xtickformat='(A1)'
-      cgaxis, xaxis = 0, xtit = 'Europa Radii', xr = yr, xstyle=1, xticklen=-0.01
-      
+;      if newimg[index0:index1, *] ne 
+;      window, 1, title='D1 mpfit'
+;      cgplot, mpfitD1emission, xr=[0,n_elements(mpfitD1emission)], xtickformat='(A1)'
+;      cgaxis, xaxis = 0, xtit = 'Europa Radii', xr = yr, xstyle=1, xticklen=-0.01
+;      window, 2, title='D2 mpfit'
+;      cgplot, mpfitD2emission, xr=[0,n_elements(mpfitD2emission)], xtickformat='(A1)'
+;      cgaxis, xaxis = 0, xtit = 'Europa Radii', xr = yr, xstyle=1, xticklen=-0.01
+;      
       angstrom_per_pixel = mean(deriv(WL))
-              
-; below, i calculate units of rayleighs to match leblanc (2005) plots. 
-          
+;              
+;; below, i calculate units of rayleighs to match leblanc (2005) plots. 
+;          
       nogaussfit = newimg;[LSF_fitting_ind1, *] + newimg[LSF_fitting_ind2, *]
       collapse   = mean(nogaussfit, dim=1)
-      
+;      
       ;very rough calculations here
       ind = min(abs(wl[500:900] - 5890.2),loc)
       profile = mpfitD1emission + mpfitD2emission
-      
+;      
       window, 3
       cgplot, profile, title = labels[orientation], ytitle = 'Rayleighs', xr=[0,n_elements(profile)], xtickformat='(A1)', yr=[0,max(collapse)], xticklen=0
       cgplot, collapse, /overplot, color='red'
@@ -1200,7 +1167,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         
         title = 'HIRES 2022-09-29 : '+labels[orientation]
   
-        cgplot, wl[500:900], total(newimg[index0:index1, *], 2), /xs, xr = [wl[500], wl[900]], pos = p[*,0], xtickformat = '(A1)', $
+        cgplot, wl[500:900], total(newimg[index0:index1, *], 2, /NAN), /xs, xr = [wl[500], wl[900]], pos = p[*,0], xtickformat = '(A1)', $
           title=title, ytitle = 'Rayleighs / ' + cgsymbol('Angstrom')
   
         cgimage, newimg[index0:index1, *], minv=-5.e3, maxv=5.e3, /axes, xr = xr, pos = p[*,2], yr = yr, /noerase, $
@@ -1214,6 +1181,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         cgaxis, xaxis = 1, xtit = 'D1 + D2 (Rayleighs)', xr = [min(profile), max(profile)]
 
       cgps_Close
+      
 ; %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% sun-sub comparison figure %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%        
       
       ;P  = cglayout([2,2], ygap = 0., oxmargin = [10,10], oymargin = [8,5], xgap = 0.)
@@ -1245,7 +1213,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         cgcolorbar, POSITION=[p[0,0], 0.045, p[2,0], 0.065], range = minmax(orientations[*,*,orientation])
   
         ; sunlight subtracted on the right hand side
-        cgplot, wl, total(newimg, 2), /xs, xr = xr, pos = p[*,1], xtickformat = '(A1)', $
+        cgplot, wl, total(newimg, 2, /NAN), /xs, xr = xr, pos = p[*,1], xtickformat = '(A1)', $
           ytickformat = '(A1)', /noerase, title=labels[orientation]+' Sun-Subtracted'
         cgaxis, yaxis = 1, ytitle = 'Rayleighs / ' + cgsymbol('Angstrom'), ystyle=1
   
@@ -1287,7 +1255,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         cgtext, .5, .15, 'Sun and Io Sub', color = 'white', /normal
         
         ;   1D spectra of sun- and io-subbed on the upper middle
-        cgplot, wl, total(newimg, 2), /xs, xr = xr, pos = p[*,1], xtickformat = '(A1)', $
+        cgplot, wl, total(newimg[index0:index1, *], 2, /NAN), /xs, xr = xr, pos = p[*,1], xtickformat = '(A1)', $
           ytickformat = '(A1)', /noerase, title=labels[orientation]+' Sun-Subtracted'
         cgaxis, yaxis = 1, ytitle = 'Rayleighs / ' + cgsymbol('Angstrom'), ystyle=1
         
@@ -1297,7 +1265,6 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         cgaxis, xaxis = 1, xtit = 'D1 + D2 (Rayleighs)', xr = [min(profile), max(profile)]
         
       cgPS_Close
-
 
 ; %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 6 panels %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1314,26 +1281,25 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         title = 'HIRES 2022-09-29 : '+labels[orientation]+' Subtraction Comparisons'
         
         ;   raw on the left hand side
-        cgimage, europa[index0:index1, *], pos = p[*,0], title=labels[orientation]+' Raw', ytitle = 'Rayleighs / '+cgsymbol('Angstrom')
+        cgimage, europa[index0:index1, 0:32], pos = p[*,0], title=labels[orientation]+' Raw', ytitle = 'Rayleighs / '+cgsymbol('Angstrom')
         cgaxis, yaxis = 0, ytit = 'Europa Radii', yr = yr, ystyle=1, yticklen=-0.01
         ;   raw 1D
-        cgplot, wl, total(europa, 2), pos = p[*,3], xr = xr, /xs, ytickformat = '(A1)', /noerase
+        cgplot, wl[index0:index1], total(europa[index0:index1, *], 2, /NAN), pos = p[*,3], xr = xr, /xs, ytickformat = '(A1)', /noerase
         cgaxis, yaxis = 0, ytitle = 'Rayleighs / ' + cgsymbol('Angstrom'), ystyle=1
         
         ;   sunlight subtracted in the middle
         cgimage, eurimg[index0:index1, *], pos = p[*,1], /noerase, title='Sun-Sub'
         ;   sun sub 1D
-        cgplot, wl, total(eurimg, 2), pos = p[*,4], xr = xr, /xs, ytickformat = '(A1)', /noerase, yr=[min(total(eurimg, 2)), max(total(eurimg, 2))+1.e3]
-        ;cgaxis, yaxis = 1, ytitle = 'Rayleighs / ' + cgsymbol('Angstrom'), ystyle=1
+        cgplot, wl[index0:index1], total(eurimg[index0:index1, *], 2, /NAN), pos = p[*,4], xr = xr, /xs, ytickformat = '(A1)', /noerase
         
         ;   sun and io subtracted on the right hand side
         cgimage, newimg[index0:index1, *], pos = p[*,2], yr = yr, /noerase, title='Sun-Io-Sub'
         ;   sun io sub 1D
-        cgplot, wl, total(newimg, 2), pos = p[*,5], ytickformat = '(A1)', /noerase, xr = xr, /xs, yr=[min(total(eurimg, 2)), max(total(eurimg, 2))+1.e3]
+        cgplot, wl[index0:index1], total(newimg[index0:index1, *], 2, /NAN), pos = p[*,5], ytickformat = '(A1)', /noerase, xr = xr, /xs;, yr=[min(total(eurimg, 2)), max(total(eurimg, 2))+1.e3]
         cgaxis, yaxis = 1, ytitle = 'Rayleighs / ' + cgsymbol('Angstrom'), ystyle=1, xtitle = 'Angstroms', xaxis = 0
         
       cgPS_Close
-      stop
+      
     endfor ; orientation
     stop
   endfor ; order
