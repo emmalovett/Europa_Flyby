@@ -39,13 +39,17 @@ pro col_dens_maps
     guider_header  = headfits(guiders[i])
     cspice_UTC2ET,   sxpar(guider_header, 'DATE-OBS') + ' '+ sxpar(guider_header, 'UTC'), guider_ET
     guider_times   = [guider_times, guider_ET]
-    ;print, guiders[i] + ' ' + sxpar(guider_header, 'DATE-OBS') + ' '+ sxpar(guider_header, 'UTC')
+    
+;    guider_frame   = mrdfits(guiders[i], 0, guider_header, /fscale)
+;    window, 4, xs=512, ys=512, title=strmid(guiders[i], 50)
+;    cgimage, guider_frame, minv=0.75*mean(guider_frame), maxv=1.5*mean(guider_frame)
+;    stop
+    
   ENDFOR
-  
 ; now i'm going to unpack the last one just so that i can get image dimensions and put them into an array later
   guider_img = mrdfits(guiders[0], 0, guider_header, /fscale)
   s          = size(guider_img)
-  
+ 
 ; now, get time stamps for spectra, convert to et AND get exposure times
   FOR j = 0, N_elements(spectra)-1 DO BEGIN
     spectra_header = headfits(spectra[j])
@@ -62,23 +66,67 @@ pro col_dens_maps
   magiq_per_frame = fltarr(s[1], s[2], n_elements(guiders))
   
   magiq_per_frame = fltarr(s[1], s[2], n_elements(guiders))
+  NSslits         = fltarr(7, 162) + !Values.F_Nan
+  EWslits         = fltarr(162, 7) + !Values.F_Nan 
   
-  FOR h = 165, 195-1 DO BEGIN ;   N_elements(start_times_et)-1 DO BEGIN                                                                   ; files 116 - 164 are of europa with the sodium filter in
+  FOR h = 165, 195-1 DO BEGIN ;   N_elements(start_times_et)-1 DO BEGIN   *****165 is where gg475 filt begins!                                                                ; files 116 - 164 are of europa with the sodium filter in
      cspice_ET2UTC, start_times_et[h], "ISOC", 2, start_times
      print, spectra[h] + ' ' + sxpar(headfits(spectra[h]), 'DATE-OBS') + ' START: '+  STRMID(start_times, 11) + '      END: '+ sxpar(headfits(spectra[h]), 'UTC')
      print, 'has MAGIQ files..............................'
      
-     FOR k = 0, N_elements(guider_times)-1 DO BEGIN
+     FOR k = 200, N_elements(guider_times)-1 DO BEGIN
       IF guider_times[k] LT spectra_times[h] AND guider_times[k] GT START_times_et[h] then begin
-        print, guiders[k]+ ' ' + sxpar(headfits(guiders[k]), 'DATE-OBS') + ' '+ sxpar(headfits(guiders[k]), 'UTC')+'   '
-        print, k
+        print, strmid(guiders[k],50)+ ' ' + sxpar(headfits(guiders[k]), 'DATE-OBS') + ' '+ sxpar(headfits(guiders[k]), 'UTC')+'   ', k
+;        print, k
         
         magiq_per_frame[*,*,k] = mrdfits(guiders[k], 0, guider_header, /fscale)                                                           ; saves all the magiq files per spectral observation
-        if strmid(guiders[k], 59, 1) eq '_' then magiq_per_frame[*,*,k] =    rotate(magiq_per_frame[*,*,k], 1)
-        if strmid(guiders[k], 50, 12) eq 'hiresSlit000' then magiq_per_frame[*,*,k] = REVERSE(mrdfits(guiders[k], 0, guider_header, /fscale), 2)
+;        if strmid(guiders[k], 59, 1) eq '_' then magiq_per_frame[*,*,k] =    rotate(magiq_per_frame[*,*,k], 1)
+;        if strmid(guiders[k], 50, 12) eq 'hiresSlit000' then magiq_per_frame[*,*,k] = REVERSE(mrdfits(guiders[k], 0, guider_header, /fscale), 2)
+        print, round(sxpar(headfits(spectra[h]), 'ROTPOSN') - 90.)
+        if round(sxpar(headfits(spectra[h]), 'ROTPOSN') - 90.) eq 344 then begin          ; NS Oriented
+          magiq_per_frame[*,*,k] = rotate(magiq_per_frame[*,*,k], 5)
+          magiq_per_frame[*,*,k] = rotate(magiq_per_frame[*,*,k], 1)
+        endif
+        if round(sxpar(headfits(spectra[h]), 'ROTPOSN') - 90.) eq 244 then begin          ; EW Oriented
+          magiq_per_frame[*,*,k] = rotate(magiq_per_frame[*,*,k], 5)
+          magiq_per_frame[*,*,k] = rotate(magiq_per_frame[*,*,k], 2)
+        endif
         
         window, 0, xs=512, ys=512, title=STRMID(spectra[h], 52, 9)+' --> '+strmid(guiders[k], 50, 17)
         cgimage, magiq_per_frame[*,*,k], minv=0.75*median(magiq_per_frame[*,*,k]), maxv=1.5*median(magiq_per_frame[*,*,k])
+        ;wait, 1
+        
+; let's do centroids now
+        
+        maxes = []
+        ylocs = []
+
+        for cols = 0, s[2]-1 do begin
+          column = magiq_per_frame[*,cols,k]
+          maxes = [maxes, max(column)]
+        endfor
+        
+        centroid_loc  = max(maxes, yloc)
+        xloc = WHERE(magiq_per_frame[*,yloc,k] eq max(magiq_per_frame[*,yloc,k]))
+        
+        CNTRD, magiq_per_frame[*,*,k], xloc, yloc, xcen, ycen, 100
+        
+        if xcen[-1] eq -1. or ycen[-1] eq -1. then begin
+          magiq_per_frame[*,*,k] = fltarr(s[1], s[2])
+          continue
+        endif
+        
+        if round(sxpar(headfits(spectra[h]), 'ROTPOSN') - 90.) eq 244 then magiq_per_frame[158:320,267:274,k] = !values.F_Nan
+        if round(sxpar(headfits(spectra[h]), 'ROTPOSN') - 90.) eq 344 then magiq_per_frame[267:274,158:320,k] = !values.F_Nan
+        
+        shift_in_x = s[1]/2. - xcen
+        shift_in_y = s[2]/2. - ycen
+        
+        magiq_per_frame[*,*,k] = shift(magiq_per_frame[*,*,k], shift_in_x, shift_in_y)
+        
+        window, 3, xs=512, ys=512, title='centroid'
+        cgimage, magiq_per_frame[*,*,k], minv=0.75*median(magiq_per_frame[*,*,k]), maxv=1.5*median(magiq_per_frame[*,*,k])
+        
       ENDIF
      ENDFOR
    goodframes = []
@@ -87,6 +135,9 @@ pro col_dens_maps
      cgimage, layered, minv=0.75*median(layered), maxv=1.5*median(layered)
      print, '    '
   ENDFOR
+  
+  window, 2, xs=512, ys=512, title='TOTALED MAGIQ FRAMES FOR THIS SPECTRUM'
+  cgimage, layered, minv=0.75*median(layered), maxv=1.5*median(layered)
   
   
   stop

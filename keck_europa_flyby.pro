@@ -64,7 +64,8 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
       Flats           = string(indgen(10)+15, format='(I4.4)')
       Lamps           = string(indgen(5)+25, format='(I4.4)')
       Star_Frames     = string(indgen(2)+78, format='(I4.4)')
-      Europa_frames   = string(indgen(31)+165, format='(I4.4)')      ;this is for K and Na data; for just Na, use string(indgen(38)+127, format='(I4.4)')
+      Europa_frames   = string(indgen(5)+137, format='(I4.4)')                        ; these are the frames for the Juno flyby, Na filter only though...
+      Europa_frames   = [Europa_frames, string(indgen(31)+165, format='(I4.4)')]      ;this is for K and Na data; for just Na, use string(indgen(38)+127, format='(I4.4)')
       Jupiter_frames  = string(116, format='(I4.4)')                 ; Jupiter disk center post eclipse
     end
   endcase
@@ -333,7 +334,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
     
     for h = 0, N_elements(orders) - 1 do begin
 
-      order = orders[h]
+      order = orders[2]
       
       ;if order.name ne 'order_60' then continue
 
@@ -404,7 +405,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         cgplot, findgen(s[0]), trace_old, psym = 4, /ynozero, /yst, /xst 
         cgplot, findgen(s[0]), trace, psym = 4, /overplot, color = 'red'
         cgplot, x, POLY( findgen(s[0]), coeffs), /overplot, color = 'blue' ; IF THIS FIT TO THE RED DATA POINTS IS BAD, EVERYTHING DOWNSTREAM FAILS
-                                                                   ; THIS IS A GOOD SPOT TO INSPECT THE TRACE FITTING, MOVING UPPER & LOWER BOUNDS
+                                                                           ; THIS IS A GOOD SPOT TO INSPECT THE TRACE FITTING, MOVING UPPER & LOWER BOUNDS
         
         ThAr_order_straight = fltarr(s[0], slit_length_pix)
         Flat_order_straight = fltarr(s[0], slit_length_pix)
@@ -540,7 +541,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         Print, 'A better guess would have been:', ROBUST_POLY_FIT(identpixl_2, identwave_2, 2, junk, SIG)
         print, 'Poly fit coefficients:', coeff_2
         WL = poly(findgen(N_elements(WL)), coeff_2)                                                               ; this is the final wavelength solution (5th order)
-       STOP ; <--- INSPECT WL SOLUTION HERE
+       ;STOP ; <--- INSPECT WL SOLUTION HERE
 
 ; write the fits files and run the Cosmic Ray Corrections. Some orders overlap the CCD edge in the extraction so exclude these regions in the CR correction
         SXADDPAR, Header, 'BZERO', 0
@@ -556,7 +557,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         
         gain = 1.0
         sigclip = 8.5
-        ;la_cosmic, Dir+'\Processed\Cosmic Rays\'+order.name+'_CR_' + Frames[frame],outsuff = "CR", sigclip = sigclip, statsec = statsec, gain = gain
+        la_cosmic, Dir+'\Processed\Cosmic Rays\'+order.name+'_CR_' + Frames[frame],outsuff = "CR", sigclip = sigclip, statsec = statsec, gain = gain
         CR_result_1 = mrdfits(Dir+'\Processed\Cosmic Rays\'+order.name+'_CR_hires'+strcompress(Europa_frames[frame], /rem)+'.Cleaned.fits', 0, junk_header)
         CR_Mask     = mrdfits(Dir+'\Processed\Cosmic Rays\'+order.name+'_CR_hires'+strcompress(Europa_frames[frame], /rem)+'.Cleaned-mask.fits', 0, junk_header)
         
@@ -603,11 +604,11 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         ; Inspect Cosmic Ray Results
         loadct, 3
           window, 0, xs = 3400, ys = slit_length_pix, title = 'Bias and Flat Corrected Frame: '+ Europa_frames[frame]
-          tv, bytscl(aperture, 0, 100) ;0.5*mean(aperture), 1.5*mean(aperture))
+          tv, bytscl(aperture);, 0, 100) ;0.5*mean(aperture), 1.5*mean(aperture))
           window, 4, xs = 3400, ys = slit_length_pix, ypos = 100, title = 'Cosmic Ray Corrected Frame '+ Europa_frames[frame]
-          tv, bytscl(CR_result_1, 0, 100) ;0.5*mean(aperture), 1.5*mean(aperture))
+          tv, bytscl(CR_result_1);, 0, 100) ;0.5*mean(aperture), 1.5*mean(aperture))
           window, 8, xs = 3400, ys = slit_length_pix, ypos = 200, title = 'Hot/Cold Pixel Filtered Cosmic Ray Corrected Frame '+ Europa_frames[frame]
-          tv, bytscl(CR_result_2, 0, 100) ;0.5*mean(aperture), 1.5*mean(aperture))
+          tv, bytscl(CR_result_2);, 0, 100) ;0.5*mean(aperture), 1.5*mean(aperture))
           window, 12, xs = 3400, ys = slit_length_pix, ypos = 300, title = 'Cosmic Ray Mask'
           tv, bytscl(CR_mask, 0, 1)
           ;wait, 2
@@ -729,7 +730,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
    
        smooth_by = 2.1
 
-   FOR order = 0, N_elements(orders) - 1 do begin
+   FOR order = 2, N_elements(orders) - 1 do begin
      restore, dir + '\Processed\.sav' 
      
      if orders[order].name eq 'order_46' then Jupiter_cube = K_Jupiter_cube 
@@ -796,6 +797,12 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
   if part eq 1.6 then begin
     restore, Dir+'\Processed\Europa_Airglow_params.sav'
     help, Europa_Airglow_params
+    
+    for i = 0, n_elements(Europa_frames)-1 do begin
+      filename = dir+'\hires' + Europa_frames[i] + '.fits'
+      header   =  headfits(filename)
+      print, sxpar(header, 'ROTPOSN') - 90.
+    endfor
 
     
     SOLAR_SPECTRUM_FILE = 'Z:\DATA\___Calibration___\Solar_and_Stellar_Calibration_Spectra\Coddington_2022\hybrid_reference_spectrum_c2021-03-04_with_unc.nc'
@@ -841,22 +848,23 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         WL    = O_WL
       endif
       
-      NS0__   = 0.5*(REFORM(cube[*,*,11]+cube[*,*,12]+cube[*,*,13]))             ; NS orientation on-disk
-      NS10_E  = 0.5*(REFORM(cube[*,*,18]+cube[*,*,19]))
-      NS20_E  = 0.5*(REFORM(cube[*,*,20]+cube[*,*,21]))
-      NS10_W  = 0.5*(REFORM(cube[*,*,14]+cube[*,*,15]))
-      NS20_W  = 0.5*(REFORM(cube[*,*,16]+cube[*,*,17]))
-      EW0__   = 0.5*(REFORM(cube[*,*,0 ]+cube[*,*,1 ]+cube[*,*,2]))             ; EW orientation on-disk
-      EW10_N  = 0.5*(REFORM(cube[*,*,3 ]+cube[*,*,4 ]))
-      EW20_N  = 0.5*(REFORM(cube[*,*,5 ]+cube[*,*,6 ]))
-      EW10_S  = 0.5*(REFORM(cube[*,*,7 ]+cube[*,*,8 ]))
-      EW20_S  = 0.5*(REFORM(cube[*,*,9 ]+cube[*,*,10]))
+      Juno    = 0.5*(REFORM(cube[*,*,0]+cube[*,*,1]+cube[*,*,2]+cube[*,*,3]+cube[*,*,4]))
+      EW0__   = 0.5*(REFORM(cube[*,*,5 ]+cube[*,*,6 ]+cube[*,*,7]+cube[*,*,27]+cube[*,*,28]+cube[*,*,29]))             ; EW orientation on-disk
+      EW10_N  = 0.5*(REFORM(cube[*,*,8 ]+cube[*,*,9 ]))
+      EW20_N  = 0.5*(REFORM(cube[*,*,10]+cube[*,*,11]))
+      EW10_S  = 0.5*(REFORM(cube[*,*,12]+cube[*,*,13]))
+      EW20_S  = 0.5*(REFORM(cube[*,*,14]+cube[*,*,15]))
+      NS0__   = 0.5*(REFORM(cube[*,*,16]+cube[*,*,17]+cube[*,*,18]+cube[*,*,34]+cube[*,*,35]))             ; NS orientation on-disk
+      NS10_W  = 0.5*(REFORM(cube[*,*,19]+cube[*,*,20]+cube[*,*,30]+cube[*,*,31]))
+      NS20_W  = 0.5*(REFORM(cube[*,*,21]+cube[*,*,22]))
+      NS10_E  = 0.5*(REFORM(cube[*,*,23]+cube[*,*,24]+cube[*,*,32]+cube[*,*,33]))
+      NS20_E  = 0.5*(REFORM(cube[*,*,25]+cube[*,*,26]))
       
       ; we'll use NS0 only for now and that's the 12th index in the spectra we observed...
         sun2europa = Europa_Airglow_params.sun2euro[12]
         s = size(NS0__)
       
-      orientations = fltarr(s[1], s[2], 10)                         ; there's definitely a better way to do this but whatever
+      orientations = fltarr(s[1], s[2], 11)                         ; there's definitely a better way to do this but whatever
       orientations[*,*,0] = NS0__ 
       orientations[*,*,1] = NS10_E
       orientations[*,*,2] = NS20_E
@@ -867,9 +875,10 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
       orientations[*,*,7] = EW20_N
       orientations[*,*,8] = EW10_S
       orientations[*,*,9] = EW20_S
+      orientations[*,*,10]= Juno
       s[2] = s[2] - 4.                                              ; HACK! just wanted to crop out the weird order for the Na order; don't know if it'll be the same for K and O
       
-      labels = ['NS0__','NS10_E','NS20_E','NS10_W','NS20_W','EW0__','EW10_N','EW20_N','EW10_S','EW20_S']
+      labels = ['NS0__','NS10_E','NS20_E','NS10_W','NS20_W','EW0__','EW10_N','EW20_N','EW10_S','EW20_S','JUNO flyby']
     
     sunmax = []
     newimg    = fltarr(s[1], s[2])
@@ -906,7 +915,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
     P_guessed   = Fltarr(3,s[2])                  ; Initial Guess that we throw at MPFIT
     
     
-    FOR orientation = 0, N_Elements(orientations[0,0,*]) - 1 DO BEGIN
+    FOR orientation = 10, N_Elements(orientations[0,0,*]) - 1 DO BEGIN
       mpfitD2emission = []
       mpfitD1emission = []
       dont_include    = []
@@ -971,7 +980,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
   
         qualitymetric = 0
         qualitymetric = stddev(totsubtrd[fitindices]) / total(row)
-        if qualitymetric lt 2.0E-05 then begin
+        if qualitymetric lt 5.0E-05 then begin
           totsubtrd = !values.F_nan;fltarr(4001)                                       ; sets threshold and gets rid of sunlight over disk
           dont_include = [dont_include, i]
           ;continue                                                      ; include the continue if you do not want to include blocked out continuum
@@ -999,7 +1008,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir
         window, 5, title='D1 io sub'
         cgplot, WL[index0:index1], dummy_row[index0:index1], yr= [-3000.,10000.]
         cgplot, wl[index0:index1], fakeio[index0:index1], /overplot, color='red', psym=12
-;        
+      
 ;        no_io[LSF_fitting_ind1] = totsubtrd[LSF_fitting_ind1]
 ;        no_io[LSF_fitting_ind2] = totsubtrd[LSF_fitting_ind2]
 ;        noIo = scaled_row - fakeio
