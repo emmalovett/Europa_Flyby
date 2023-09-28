@@ -9,19 +9,17 @@ ewfile  = dir+'\hiresSlit000_0066.fits'
 nsfile  = dir+'\hiresSlit000_0075.fits'
 guiders = FILE_SEARCH(dir, '*.fits')
 
-for i = 21, N_ELEMENTS(guiders)-1 DO BEGIN ;64
-  frame = mrdfits(guiders[i], 0, header, /fscale) 
-  frame = rotate(frame, 5)
-  frame = rotate(frame, 2)
-  
-  window, 6, xs=512, ys=512, title=STRMID(guiders[i], 50)
-  cgimage, frame, minv=500, maxv=1600
-  print, sxpar(header, 'ROTPOSN') - 90.
-  
-  
-  stop
-endfor
-stop
+;for i = 21, N_ELEMENTS(guiders)-1 DO BEGIN ;64
+;  frame = mrdfits(guiders[i], 0, header, /fscale) 
+;  frame = rotate(frame, 5)
+;  frame = rotate(frame, 2)
+;  
+;  window, 6, xs=512, ys=512, title=STRMID(guiders[i], 50)
+;  cgimage, frame, minv=500, maxv=1600
+;  print, sxpar(header, 'ROTPOSN') - 90.
+;
+;endfor
+;stop
 nsframe = mrdfits(nsfile, 0, nsheader, /fscale) 
 ewframe = mrdfits(ewfile, 0, ewheader, /fscale)
 

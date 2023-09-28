@@ -936,7 +936,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
     gg475_new_images = fltarr(s[1], s[2], N_elements(labels)-1)
     Na_new_images    = fltarr(s[1], s[2], N_elements(labels))
     
-    FOR orientation = 0, N_Elements(orientations[0,0,*]) - 1 DO BEGIN
+    FOR orientation = 10, N_Elements(orientations[0,0,*]) - 1 DO BEGIN
       mpfitD2emission = []
       mpfitD1emission = []
       dont_include    = []
@@ -1001,6 +1001,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
   
         qualitymetric = 0
         qualitymetric = stddev(totsubtrd[fitindices]) / total(row)
+        
         if (i gt 9) and (i lt 20) then begin
           if qualitymetric lt 8.E-05 then begin
             totsubtrd = !values.F_nan;fltarr(4001)                                       ; sets threshold and gets rid of sunlight over disk
@@ -1193,11 +1194,16 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
       GVALUE,  'K-D', sun_europa * (10^3), distance / 1.496e8, WL_A[k_ind-9000:k_ind+9000], Flux[k_ind-9000:k_ind+9000], g_K
       print,  'g-value for K D1+D2 using horizons', g_K
       
-      column = profile * 9. * angstrom_per_pixel * 1.5 * 10.e6 / g_Na
+      column       = profile * 9. * angstrom_per_pixel * 1.5 * 10.e6 / g_Na
+      
+;      scale_height = WHERE(column[15:*] eq 3.5E10) - WHERE(column[15:*] eq 3.5E10 / 2.718281828)
+      scale_height = 3.                                         ; 3 europa radii scale height
+      scale_height = scale_height * 1.5608E8                    ; converts to cm ?
+      volume_dens  = column / scale_height
       
       
       ; Compare raw vs sun-subtracted spectra.
-      xr    = [5888.1, 5898.5]
+      xr    = [wl[500],wl[900]]    ;[5887.5, 5897.9]     ;
       junk  = min(abs(xr[0]- WL), index0)
       junk  = min(abs(xr[1]- WL), index1)
       WL_xr = [index0, index1]
@@ -1207,7 +1213,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
       P = cglayout([2,2], ygap = 0., oxmargin = [14, 2], oymargin = [9, 5], xgap = 0.)
       axis_format = {XTicklen:-.01, yticklen:-0.01 }
       
-      cgPS_Open, filename = Dir+'\Figures\3panel_'+order.name+'_'+labels[orientation]+'.eps', /ENCAPSULATED, xsize = 7.5, ysize = 5
+      cgPS_Open, filename = Dir+'\Figures\3panel_'+order.name+'_'+labels[orientation]+'.eps', /ENCAPSULATED, xsize = 7.5, ysize = 6
         !P.font=1
         loadct, 3
         device, SET_FONT = 'Helvetica Bold', /TT_FONT
@@ -1215,20 +1221,28 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
         title = 'HIRES 2022-09-29 : '+labels[orientation]
   
         cgplot, wl[500:900], total(newimg[index0:index1, *], 2, /NAN)/(10^4), /xs, xr = [wl[500], wl[900]], pos = p[*,0], xtickformat = '(A1)', $
-          title=title, ytitle = 'Rayleighs / ' + cgsymbol('Angstrom') + ' ('+cgsymbol('times')+'10!U4!N)'
+          title=title, ytitle = cgsymbol('times')+'10!U4!N Rayleighs / ' + cgsymbol('Angstrom'), yticklen=-0.02
   
         cgimage, newimg[index0:index1, *], minv=-5.e3, maxv=5.e3, /axes, xr = xr, pos = p[*,2], yr = yr, /noerase, $
-          xtitle = 'Angstroms', AXKEYWORDS = axis_format
+          xtitle = 'Wavelength ('+cgsymbol('Angstrom')+')', AXKEYWORDS = axis_format
         cgaxis, yaxis = 0, ytit = 'Europa Radii', yr = yr, ystyle=1, yticklen=-0.01
-
-        cgcolorbar, POSITION=[0.56, 0.54, 0.58, 0.91], range = [0.0,max(column/1.e10)], /vertical, /right
+        
+        cgplot, fltarr(N_elements(newimg[index0:index1, *])), findgen(N_elements(newimg[index0:index1, *])), $
+          /ynozero, /noerase, pos = p[*,1], ys= 5, xtickformat="(A1)", ytickformat="(A1)", xstyle=9
+        cgaxis, xr = [min(profile)/1000., max(profile)/1000.], charsize=1, xticklen=-0.02, xminor=1
+;        cgtext, 0.65, 0.93, 'Estimated Volume Density Along Juno Trajectory (atoms / cm!U3!N)', color='black', /normal, charsize=2
   
         cgplot, column/1.e10, findgen(N_elements(newimg[index0:index1, *])), /ynozero, /noerase, pos = p[*,3], ys= 5, $
-          xtitle = 'Na Column Density ('+cgsymbol('times')+'10!U10!N atoms / cm!U2!N)';, xr=[0,400]
-        cgaxis, xaxis = 1, xtit = 'D1 + D2 ('+cgsymbol('times')+'10!U3!N Rayleighs)', xr = [min(profile)/1000., max(profile)/1000.]
+          xtitle = 'Na Column Density ('+cgsymbol('times')+'10!U10!N atoms / cm!U2!N)', xstyle=9;, xr=[0,400]
+;        cgaxis, xaxis = 1, xr = [min(profile)/1000., max(profile)/1000.], charsize=1
+        cgaxis, xr = [min(volume_dens), max(volume_dens)], xaxis = 1, xminor=1, charsize=1.3, color='maroon'
+        cgtext, 0.70, 0.47, 'D1 + D2 ('+cgsymbol('times')+'10!U3!N Rayleighs)', color='black', /normal, charsize=1
+
+        cgcolorbar, POSITION=[0.563, 0.538, 0.573, 0.907], range = [0.0,max(column/1.e10)], /vertical, charsize=1, /right
+        
 
       cgps_Close
-      
+      stop
 ; %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% sun-sub comparison figure %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%        
       
       ;P  = cglayout([2,2], ygap = 0., oxmargin = [10,10], oymargin = [8,5], xgap = 0.)
