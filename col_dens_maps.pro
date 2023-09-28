@@ -65,9 +65,11 @@ pro col_dens_maps, filt
   
   NSslit_locations                  = fltarr(s[1], s[2])
   EWslit_locations                  = fltarr(s[1], s[2])
+  JUslit_locations                  = fltarr(s[1], s[2])
   NSslit_locations[267:274,158:320] = !Values.F_Nan
   EWslit_locations[158:320,267:274] = !Values.F_Nan
-  slit_location_Juno                = ROT(NSslit_locations, 316)
+  JUslit_locations[257:264,158:320] = !Values.F_Nan
+  slit_location_Juno                = ROT(JUslit_locations, 316)
   slit_location_344                 = ROT(NSslit_locations, 350)
   
   
@@ -162,8 +164,11 @@ endif     ; gg475 filter data
 if filt eq 'Na' then begin  
   FOR h = 126, 165-1 DO BEGIN                                                             ; these are the Na filter files
     cspice_ET2UTC, start_times_et[h], "ISOC", 2, start_times
+    date = sxpar(headfits(spectra[h]), 'DATE')
     print, spectra[h] + ' ' + sxpar(headfits(spectra[h]), 'DATE-OBS') + ' START: '+  STRMID(start_times, 11) + '      END: '+ sxpar(headfits(spectra[h]), 'UTC')
     print, 'has MAGIQ files..............................'
+    
+    cspice_str2et, date, et
     
     ;if (h GT 136) and (h LT 141) then continue                                           ; comment this line out if you WANT to include juno flyby data
 
@@ -238,6 +243,27 @@ if filt eq 'Na' then begin
     print, '    '
   ENDFOR
   
+  ; Get the body-fixed non-inertial IAU_Earth Coordinates of Keck Observatory in Cartesian
+  cspice_bodvrd, 'EARTH', 'RADII', 3, radii
+  flat = (radii[0] - radii[2])/radii[0]
+  OBSERVATORY_cs, 'Keck', obs_struct ;longitude is in degrees *West*, need to switch to East Longit for J2000 conversion via cspice_georec
+  cspice_georec, (360. - obs_struct.longitude) * CSPICE_RPD(), obs_struct.latitude * CSPICE_RPD(), obs_struct.altitude / 1.e3, $
+    radii[0], flat, obs_IAU_Earth
+  origin = [obs_IAU_Earth, 0, 0, 0]
+  
+  ; Calculate radial velocity and adjust wavelength array for instantaneous Dopplershift
+  cspice_spkezr, 'Jupiter', et, 'IAU_EARTH', 'lt+s', 'Earth', Jupiter_Earth_State, ltime
+  state = Jupiter_Earth_State - origin
+  
+  ; Find the angular radius of Europa
+  cspice_bodvrd, 'Europa', 'RADII', 3, radii
+  ang_radius = 206265.*tan(radii[0]/sqrt(total(state[0:2]^2)))
+  
+  plate_scale = 0.358
+  plate_scale = 0.09
+  yr = [-((s[1])*plate_scale/ang_radius)+0.8, ((s[1])*plate_scale/ang_radius)-0.8]              ; hack hack hackkk should be s[1]/2
+  
+  
   cgPS_Open, filename = dir+'\Figures\Na_guider_map_Juno.eps', $
       /ENCAPSULATED, xsize = 10, ysize = 10
     !P.font=1
@@ -247,6 +273,7 @@ if filt eq 'Na' then begin
     title = 'HIRES 2022-09-29 Na filter Slit Orientations Around Europa'
   
     cgimage, layered, minv=0.75*median(layered), maxv=1.5*median(layered)
+   ; cgaxis, 0.1, yaxis = 0, ytit = 'Europa Radii', yr = yr, ystyle=1, yticklen=0.02, color='white', yticks=16
 
   cgPS_Close
   
