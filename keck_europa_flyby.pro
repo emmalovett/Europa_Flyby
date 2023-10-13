@@ -1373,20 +1373,20 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
   if part eq 2 then begin                                                         ; mapping brightnesses around europa in grid structure
     RESTORE, Dir+'\Processed\sun_subbed_europa.sav'
     
-    guiders          = FILE_SEARCH(dir+'\MAGIQ files', 'hiresslit*'+'*.fits')                                                                ;    orientations[*,*,0 ] = NS0__ 
-    spectra          = FILE_SEARCH(dir+'\Processed\Cosmic Rays', 'order_60_*'+'*CR.fits')                                                    ;    orientations[*,*,1 ] = NS10_E
-    guider_times     = []                                                                                                                    ;    orientations[*,*,2 ] = NS20_E
-    spectra_times    = []                                                                                                                    ;    orientations[*,*,3 ] = NS10_W
-    exp_times        = []                                                                                                                    ;    orientations[*,*,4 ] = NS20_W
-                                                                                                                                             ;    orientations[*,*,5 ] = EW0__ 
-  ; first, get the time stamps for the guider frames, convert to et                                                                          ;    orientations[*,*,6 ] = EW10_N
-    FOR i = 0, N_elements(guiders)-1 DO BEGIN                                                                                                ;    orientations[*,*,7 ] = EW20_N
-      guider_header  = headfits(guiders[i])                                                                                                  ;    orientations[*,*,8 ] = EW10_S
-      cspice_UTC2ET,   sxpar(guider_header, 'DATE-OBS') + ' '+ sxpar(guider_header, 'UTC'), guider_ET                                        ;    orientations[*,*,9 ] = EW20_S
-      guider_times   = [guider_times, guider_ET]                                                                                             ;    if filt eq 'Na' then orientations[*,*,10] = Juno
-                                                                                                                                             ;
-  ;    guider_frame   = mrdfits(guiders[i], 0, guider_header, /fscale)                                                                       ;
-  ;    window, 4, xs=512, ys=512, title=strmid(guiders[i], 50)                                                                               ;
+    guiders          = FILE_SEARCH(dir+'\MAGIQ files', 'hiresslit*'+'*.fits')                                                              
+    spectra          = FILE_SEARCH(dir+'\Processed\Cosmic Rays', 'order_60_*'+'*CR.fits')                                                  
+    guider_times     = []                                                                                                                  
+    spectra_times    = []                                                                                                                  
+    exp_times        = []                                                                                                                  
+                                                                                                                                           
+  ; first, get the time stamps for the guider frames, convert to et                                                                        
+    FOR i = 0, N_elements(guiders)-1 DO BEGIN                                                                                              
+      guider_header  = headfits(guiders[i])                                                                                                
+      cspice_UTC2ET,   sxpar(guider_header, 'DATE-OBS') + ' '+ sxpar(guider_header, 'UTC'), guider_ET                                      
+      guider_times   = [guider_times, guider_ET]                                                                                           
+                                                                                                                                           
+  ;    guider_frame   = mrdfits(guiders[i], 0, guider_header, /fscale)                                                                     
+  ;    window, 4, xs=512, ys=512, title=strmid(guiders[i], 50)                                                                             
   ;    cgimage, guider_frame, minv=0.75*mean(guider_frame), maxv=1.5*mean(guider_frame)
   ;    stop
       
@@ -1410,12 +1410,17 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
     
     NSslit_locations                  = fltarr(s[1], s[2])
     EWslit_locations                  = fltarr(s[1], s[2])
-    NSslit_locations[267:274,158:320] = !Values.F_Nan
-    EWslit_locations[158:320,267:274] = !Values.F_Nan
+    
+    slit                              = fltarr(8, 163)
+    
+    short                             = findgen(8)+267
+    longs                             = findgen(163)+158
+    NSslit_locations[min(short):max(short),min(longs):max(longs)] = !Values.F_Nan
+    EWslit_locations[min(longs):max(longs),min(short):max(short)] = !Values.F_Nan
     slit_location_Juno                = ROT(NSslit_locations, 316)
     slit_location_344                 = ROT(NSslit_locations, 350)
     
-    
+    slitsize                          = size(slit)
     
     
   if filt eq 'gg475' then begin
@@ -1507,7 +1512,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
   ;;;; this is for Na filtered data  
   if filt eq 'Na' then begin  
     FOR h = 136, 140-1 DO BEGIN ;129, 165-1 DO BEGIN                                                             ; these are the Na filter files
-      stop
+      
       h = h + 1                                                                             ; for ease of indexing data, i just +1'd the index so it starts from 1, not 0
       if (h ge 130) and (h le 132) $
       or (h ge 162) and (h le 164) then orientation = Na_new_images[*,*,5 ]                                        ;  orientations[*,*,0 ] = NS0__ 
@@ -1524,8 +1529,13 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
       if (h ge 157) and (h le 158) then orientation = Na_new_images[*,*,2 ]                                        ;  if filt eq 'Na' then orientations[*,*,10] = Juno
       h = h - 1
       
-      slitfiller = total(orientation, 3, /NAN)
-      cgplot, slitfiller
+      slitfiller1d = total(orientation[index0:index1,*], 1, /NAN)
+      slitfiller2d = REBIN(slitfiller1d, slitsize[2], slitsize[3])
+      
+      window, 0
+      cgplot, slitfiller1d
+      window, 1
+      cgimage, slitfiller2d
       stop
       
       
