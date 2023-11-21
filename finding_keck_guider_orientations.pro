@@ -4,7 +4,7 @@ pro finding_keck_guider_orientations
 
 
 dir = 'Z:\DATA\Keck\Europa Na\HIRES_20220928\MAGIQ files'
-dir = 'Z:\DATA\Keck\Io Eclipse HIRES\08-09-2023\Guider'
+;dir = 'Z:\DATA\Keck\Io Eclipse HIRES\08-09-2023\Guider'
 ewfile  = dir+'\hiresSlit000_0066.fits'
 nsfile  = dir+'\hiresSlit000_0075.fits'
 guiders = FILE_SEARCH(dir, '*.fits')
@@ -22,7 +22,6 @@ guiders = FILE_SEARCH(dir, '*.fits')
 ;stop
 nsframe = mrdfits(nsfile, 0, nsheader, /fscale) 
 ewframe = mrdfits(ewfile, 0, ewheader, /fscale)
-
 
 
 window, 0, xs=512, ys=512, title=STRMID(nsfile, 50)+'  NS'
@@ -54,7 +53,6 @@ rotated_EW = transposed_EW
 window, 5,  xs=512, ys=512, title=STRMID(ewfile, 50)+'  ROTATED '       ; <------------- USE THIS FOR ORIENTATION YAAA
 cgimage, rotated_EW, minv=0.75*mean(ewframe), maxv=1.5*mean(ewframe)
 
-
 ;;;; why are these different???
 
 testpath1 = dir+'\hiresSlit000_0205.fits'
@@ -77,7 +75,6 @@ tv, bytscl(testimg1)
 
 window, 7,  xs=512, ys=512
 tv, bytscl(testimg2)
-stop
 
 
 
@@ -108,15 +105,15 @@ stop
 ;window, 7,  xs=512, ys=512, title=STRMID(path, 50)+'  ROTATED'
 ;cgimage, ROTATE(ioimg, 5), minv=0.75*mean(ioimg), maxv=1.5*mean(ioimg)
 ;stop
-nsjupfile = dir+'\hiresSlit000_0275.fits'             ; 100 for NS Jupiter, 275 for EW Jupiter
+nsjupfile = dir+'\hiresSlit000_0100.fits'             ; 100 for NS Jupiter, 275 for EW Jupiter
 jupimg  = mrdfits(nsjupfile, 0, header, /fscale)
 
 window, 6,  xs=512, ys=512, title=STRMID(nsjupfile, 50)
 tv, bytscl(jupimg)
-
-
+;rdpix, jupimg
+;stop
 jupimg  = rotate(jupimg, 5)
-;jupimg  = rotate(jupimg, 1)
+jupimg  = rotate(jupimg, 1)
 
 window, 7,  xs=512, ys=512, title=STRMID(nsjupfile, 50)+'  ROTATED'
 tv, bytscl(jupimg)

@@ -175,7 +175,7 @@ if filt eq 'Na' then begin
     FOR k = 0, N_elements(guider_times)-1 DO BEGIN
       IF guider_times[k] LT spectra_times[h] AND guider_times[k] GT START_times_et[h] then begin
         print, strmid(guiders[k],50)+ ' ' + sxpar(headfits(guiders[k]), 'DATE-OBS') + ' '+ sxpar(headfits(guiders[k]), 'UTC')+'   ', k
-        
+        stop
         if k eq 158 then continue                                                         ; idk what this frame is but it's not 10 S like the log says
         
         magiq_per_frame[*,*,k] = mrdfits(guiders[k], 0, guider_header, /fscale)           ; saves all the magiq files per spectral observation

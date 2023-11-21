@@ -250,7 +250,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
       write_file = rotate(transpose(reform(Europa_array[*,*,i])),7)
       SXADDPAR, Header, 'BZERO', 0.0
       MWRFITS, write_file, Dir+'\Processed' + new_filename + '.Cleaned.fits', header, /create, /silent
-      
+      stop
     endfor
     Europa_Airglow_params = create_struct( 'torus_lat', torus_lat_array, $
                                            'ET', ET_array, $
@@ -333,7 +333,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
      O_Jupiter_cube = fltarr(4001, 36, N_elements(Jupiter_frames))
     
     for h = 2, N_elements(orders) - 1 do begin
-      
+      order = orders[h]
       ;if order.name ne 'order_60' then continue
 
       ; Use a star to find the trace in within the orders of interest
@@ -352,7 +352,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
       ID          = make_array(N_elements(order_lines), value = 1.e5)
 
       Frames = 'hires'+strcompress(Europa_frames, /rem)+'.Cleaned.fits'
-      for frame = 0, n_elements(Frames)-1 do begin
+      for frame = 10, 14-1 do begin; n_elements(Frames)-1 do begin
 
         Europa   = mrdfits(Dir+'\Processed\' + Frames[frame], 0, header)
         WL      = WL_0          ; start with the guessed WL
@@ -584,6 +584,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
           if (frame eq 0) or (frame eq 1) or (frame eq 2) or (frame eq 11) or (frame eq 12) or (frame eq 13) then begin
             Na_cube[*,*,frame] = CR_result_1
           endif
+          
 ;          window, 5, title=europa_frames[frame]
 ;          cgplot, CR_result_2, color='red'
 ;          cgplot, CR_result_1, /overplot
@@ -790,18 +791,24 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
    endfor  
   stop
   PRINT, 'To Do: did not yet inspect flux calibration of K D and O 6300 orders!' 
-  endif    
+  endif
     
   if part eq 1.6 then begin
     restore, Dir+'\Processed\Europa_Airglow_params.sav'
     help, Europa_Airglow_params
     
-    for i = 0, n_elements(Europa_frames)-1 do begin
-      filename = dir+'\hires' + Europa_frames[i] + '.fits'
-      header   =  headfits(filename)
-    endfor
-
+    filenames = []
+    Europa_array               = fltarr(4001, 36, n_elements(Europa_frames))
     
+    for h = 2, N_elements(orders)-1 do begin
+      order = orders[h]
+      for i = 0, n_elements(Europa_frames)-1 do begin
+        filename = dir+'\Processed\Cosmic Rays\'+order.name+'_CR_hires' + Europa_frames[i] + '.CleanedCR.fits'
+        header   =  headfits(filename)
+        filenames= [filenames, filename]
+      endfor
+      
+    endfor
     SOLAR_SPECTRUM_FILE = 'Z:\DATA\___Calibration___\Solar_and_Stellar_Calibration_Spectra\Coddington_2022\hybrid_reference_spectrum_c2021-03-04_with_unc.nc'
     NCDF_LIST, SOLAR_SPECTRUM_FILE, /VARIABLES, /DIMENSIONS, /GATT, /VATT
 
@@ -862,20 +869,21 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
     endif
     
     if filt eq 'Na' then begin
-      EW0__   = 0.5*(REFORM(cube[*,*,2 ]+cube[*,*,3 ]+cube[*,*,4]+cube[*,*,34] $
-                +cube[*,*,35]+cube[*,*,36]))                                                                ; EW orientation on-disk
-      EW10_N  = 0.5*(REFORM(cube[*,*,5 ]+cube[*,*,6 ]))
-      EW20_N  = 0.5*(REFORM(cube[*,*,7 ]+cube[*,*,8 ]))
-      Juno    = 0.5*(REFORM(cube[*,*,9 ]+cube[*,*,10]+cube[*,*,11]+cube[*,*,12] $
-                +cube[*,*,13]))
-      EW10_S  = 0.5*(REFORM(cube[*,*,14]+cube[*,*,15]))
-      EW20_S  = 0.5*(REFORM(cube[*,*,16]+cube[*,*,17]))
-      NS0__   = 0.5*(REFORM(cube[*,*,18]+cube[*,*,19]+cube[*,*,20]+cube[*,*,21] $
-                +cube[*,*,22]+cube[*,*,31]+cube[*,*,32]+cube[*,*,33]))                                      ; NS orientation on-disk
-      NS10_W  = 0.5*(REFORM(cube[*,*,23]+cube[*,*,24]))
-      NS20_W  = 0.5*(REFORM(cube[*,*,25]+cube[*,*,26]))
-      NS10_E  = 0.5*(REFORM(cube[*,*,27]+cube[*,*,28]))
-      NS20_E  = 0.5*(REFORM(cube[*,*,29]+cube[*,*,30]))
+      for frame = 0, N_elements(Europa_frames)-1 do begin                                                   ; these are now the CR corrected frames
+        cube[*,*,frame] = mrdfits(filenames[frame], 0, header, /fscale)
+      endfor
+      
+      EW0__   = 0.5*(REFORM(TOTAL(cube[*,*,2:4]+cube[*,*,34:36],3)))                                        ; EW orientation on-disk
+      EW10_N  = 0.5*(REFORM(TOTAL(cube[*,*,5:6]  , 3)))
+      EW20_N  = 0.5*(REFORM(TOTAL(cube[*,*,7:8]  , 3)))
+      Juno    = 0.5*(REFORM(TOTAL(cube[*,*,9:13] , 3)))
+      EW10_S  = 0.5*(REFORM(TOTAL(cube[*,*,14:15], 3)))
+      EW20_S  = 0.5*(REFORM(TOTAL(cube[*,*,16:17], 3)))
+      NS0__   = 0.5*(REFORM(TOTAL(cube[*,*,18:22]+cube[*,*,31:33], 3)))                                     ; NS orientation on-disk
+      NS10_W  = 0.5*(REFORM(TOTAL(cube[*,*,23:24], 3)))
+      NS20_W  = 0.5*(REFORM(TOTAL(cube[*,*,25:26], 3)))
+      NS10_E  = 0.5*(REFORM(TOTAL(cube[*,*,27:28], 3)))
+      NS20_E  = 0.5*(REFORM(TOTAL(cube[*,*,29:30], 3)))
     endif
     
     ; we'll use NS0 only for now and that's the 12th index in the spectra we observed...
@@ -885,20 +893,20 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
     if filt eq 'Na'    then orientations = fltarr(s[1], s[2], 11)                         ; there's definitely a better way to do this but whatever
     if filt eq 'gg475' then orientations = fltarr(s[1], s[2], 10)
     
-    orientations[*,*,0 ] = NS0__ 
-    orientations[*,*,1 ] = NS10_E
-    orientations[*,*,2 ] = NS20_E
-    orientations[*,*,3 ] = NS10_W
-    orientations[*,*,4 ] = NS20_W
-    orientations[*,*,5 ] = EW0__ 
-    orientations[*,*,6 ] = EW10_N
-    orientations[*,*,7 ] = EW20_N
-    orientations[*,*,8 ] = EW10_S
-    orientations[*,*,9 ] = EW20_S
+    orientations[*,*,0 ] = EW0__ 
+    orientations[*,*,1 ] = EW10_N
+    orientations[*,*,2 ] = EW20_N
+    orientations[*,*,3 ] = EW10_S
+    orientations[*,*,4 ] = EW20_S
+    orientations[*,*,5 ] = NS0__ 
+    orientations[*,*,6 ] = NS10_W
+    orientations[*,*,7 ] = NS20_W
+    orientations[*,*,8 ] = NS10_E
+    orientations[*,*,9 ] = NS20_E
     if filt eq 'Na' then orientations[*,*,10] = Juno
     s[2] = s[2] - 4.                                              ; HACK! just wanted to crop out the weird order for the Na order; don't know if it'll be the same for K and O
     
-    labels = ['NS0__','NS10_E','NS20_E','NS10_W','NS20_W','EW0__','EW10_N','EW20_N','EW10_S','EW20_S','JUNO flyby']
+    labels = ['EW0__','EW10_N','EW20_N','EW10_S','EW20_S','NS0__','NS10_E','NS20_E','NS10_W','NS20_W','JUNO flyby']
     
     sunmax = []
     newimg    = fltarr(s[1], s[2])
@@ -935,8 +943,10 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
     P_guessed        = Fltarr(3,s[2])                  ; Initial Guess that we throw at MPFIT
     gg475_new_images = fltarr(s[1], s[2], N_elements(labels)-1)
     Na_new_images    = fltarr(s[1], s[2], N_elements(labels))
+    Nacolumns        = fltarr(s[2], N_elements(labels))
+    GGcolumns        = fltarr(s[2], N_elements(labels))
     
-    FOR orientation = 10, N_Elements(orientations[0,0,*]) - 1 DO BEGIN
+    FOR orientation = 0, N_Elements(orientations[0,0,*]) - 1 DO BEGIN
       mpfitD2emission = []
       mpfitD1emission = []
       dont_include    = []
@@ -975,7 +985,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
         parinfo[2].limits     = [0.0, 20.]
 
         WEIGHTS = 1./(abs(findgen(s[1]) - Europa_D2_pixel))^.4 + 1./(abs(findgen(s[1]) - Europa_D1_pixel))^.4
-        
+ 
         fa = {x:sunlight_1d[fitindices], y:row[fitindices], err:sqrt(abs(row[fitindices]))}
         p = mpfit('match_scattered_sunlight', p0, PERROR = err_P, functargs=fa, status=status, parinfo=parinfo, quiet=quiet)
         P_guessed[*,i]  = p0
@@ -986,7 +996,6 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
         sub         = guess_scale * sunlight_1d                          ; If you JUST want the multiplicative correction (no scattered sunlight accounted for w mpfit)
         totsubtrd   = row  - scaled_sunlight                             ; Change back to row - sub to get just the multiplicative factor
         if i eq suncol then continuum = scaled_sunlight                  ; this saves the non-sun subtracted continuum row so that i can reference it later
-        
 ; for each row, fit a gaussian to the D1 and D2 lines. find area under curve --> emission!
         windowwidth         = 30.
         
@@ -1002,23 +1011,25 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
         qualitymetric = 0
         qualitymetric = stddev(totsubtrd[fitindices]) / total(row)
         
-        if (i gt 9) and (i lt 20) then begin
-          if qualitymetric lt 8.E-05 then begin
-            totsubtrd = !values.F_nan;fltarr(4001)                                       ; sets threshold and gets rid of sunlight over disk
-            dont_include = [dont_include, i]
-            ;continue                                                      ; include the continue if you do not want to include blocked out continuum
+        if (labels[orientation] eq 'NS0__') or (labels[orientation] eq 'EW0__') or (labels[orientation] eq 'JUNO flyby') then begin
+          if (i gt 9) and (i lt 20) then begin
+            if qualitymetric lt 9.E-05 then begin
+              totsubtrd = !values.F_nan                                                                                            ; sets threshold and gets rid of sunlight over disk
+              dont_include = [dont_include, i]
+            endif
           endif
         endif
         eurimg[*,i]  = totsubtrd
       endfor
+      
       meanimg = median(eurimg, dim=2)
-      meanimg[LSF_fitting_ind1] = !values.F_nan                                                 ; first, i'm masking out europa's emission (continuum is already masked out)
+      meanimg[LSF_fitting_ind1] = !values.F_nan                                                                                   ; first, i'm masking out europa's emission (continuum is already masked out)
       meanimg[LSF_fitting_ind2] = !values.F_nan
       fakeio = interpol(meanimg, WL, WL, /NAN)
       
       for i = 0, s[2] - 1 DO BEGIN
         dummy_row = eurimg[*,i]
-;        dummy_row[LSF_fitting_ind1] = !values.F_nan                                                 ; first, i'm masking out europa's emission (continuum is already masked out)
+;        dummy_row[LSF_fitting_ind1] = !values.F_nan                                                                              ; first, i'm masking out europa's emission (continuum is already masked out)
 ;        dummy_row[LSF_fitting_ind2] = !values.F_nan
         if max(dummy_row) eq 0. then scaled_row = dummy_row
         if max(dummy_row) ne 0. then scaled_row = dummy_row * (max(meanimg) / max(dummy_row))                                     ; scales row to the spatially resolved mean of sunlight-subtracted image
@@ -1100,9 +1111,9 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
 ;        cgplot, D2fa.x, gaussian(D2fa.x, a), /overplot, color='red'                                         ; all plots in DN/s
       ENDFOR ; each row of ONE orientation
       
-      window, 0
+      window, 0, title=labels[orientation]
       loadct, 3
-      cgimage, newimg[index0:index1, *], minv=-1e4, maxv=1e4
+      cgimage, bytscl(newimg[index0:index1, *]);, minv=0.25*mean(newimg[index0:index1, *], /nan), maxv=1.5*mean(newimg[index0:index1, *], /nan)
       window, 1
       cgplot, wl[index0:index1], total(newimg[index0:index1, *], 2, /nan)
       
@@ -1194,8 +1205,9 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
       GVALUE,  'K-D', sun_europa * (10^3), distance / 1.496e8, WL_A[k_ind-9000:k_ind+9000], Flux[k_ind-9000:k_ind+9000], g_K
       print,  'g-value for K D1+D2 using horizons', g_K
       
-      column       = profile * 9. * angstrom_per_pixel * 1.5 * 10.e6 / g_Na
-      
+      column                                               = profile * 9. * angstrom_per_pixel * 1.5 * 10.e6 / g_Na
+      if filt eq 'Na' then Nacolumns[*, orientation]       = column
+      if filt eq 'gg475' then GGcolumns[*, orientation]    = column
 ;      scale_height = WHERE(column[15:*] eq 3.5E10) - WHERE(column[15:*] eq 3.5E10 / 2.718281828)
       scale_height = 3.                                         ; 3 europa radii scale height
       scale_height = scale_height * 1.5608E8                    ; converts to cm ?
@@ -1223,7 +1235,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
         cgplot, wl[500:900], total(newimg[index0:index1, *], 2, /NAN)/(10^4), /xs, xr = [wl[500], wl[900]], pos = p[*,0], xtickformat = '(A1)', $
           title=title, ytitle = cgsymbol('times')+'10!U4!N Rayleighs / ' + cgsymbol('Angstrom'), yticklen=-0.02
   
-        cgimage, newimg[index0:index1, *], minv=-5.e3, maxv=5.e3, /axes, xr = xr, pos = p[*,2], yr = yr, /noerase, $
+        cgimage, bytscl(newimg[index0:index1, *]), /axes, xr = xr, pos = p[*,2], yr = yr, /noerase, $
           xtitle = 'Wavelength ('+cgsymbol('Angstrom')+')', AXKEYWORDS = axis_format
         cgaxis, yaxis = 0, ytit = 'Europa Radii', yr = yr, ystyle=1, yticklen=-0.01
         
@@ -1242,7 +1254,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
         
 
       cgps_Close
-      stop
+      
 ; %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% sun-sub comparison figure %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%        
       
       ;P  = cglayout([2,2], ygap = 0., oxmargin = [10,10], oymargin = [8,5], xgap = 0.)
@@ -1373,16 +1385,17 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
   if part eq 2 then begin                                                         ; mapping brightnesses around europa in grid structure
     RESTORE, Dir+'\Processed\sun_subbed_europa.sav'
     
-    guiders          = FILE_SEARCH(dir+'\MAGIQ files', 'hiresslit*'+'*.fits')                                                              
-    spectra          = FILE_SEARCH(dir+'\Processed\Cosmic Rays', 'order_60_*'+'*CR.fits')                                                  
-    guider_times     = []                                                                                                                  
-    spectra_times    = []                                                                                                                  
-    exp_times        = []                                                                                                                  
-                                                                                                                                           
+    guiders          = FILE_SEARCH(dir+'\MAGIQ files', 'hiresslit*'+'*.fits')
+    spectra          = FILE_SEARCH(dir+'\Processed\Cosmic Rays', 'order_60_*'+'*CR.fits')
+    guider_times     = []
+    end_times_et     = []
+    start_times_et   = []
+    exp_times        = []
+    
   ; first, get the time stamps for the guider frames, convert to et                                                                        
     FOR i = 0, N_elements(guiders)-1 DO BEGIN                                                                                              
       guider_header  = headfits(guiders[i])                                                                                                
-      cspice_UTC2ET,   sxpar(guider_header, 'DATE-OBS') + ' '+ sxpar(guider_header, 'UTC'), guider_ET                                      
+      cspice_UTC2ET,   sxpar(guider_header, 'DATE-OBS') + 'T'+ sxpar(guider_header, 'UTC'), guider_ET                                      
       guider_times   = [guider_times, guider_ET]                                                                                           
                                                                                                                                            
   ;    guider_frame   = mrdfits(guiders[i], 0, guider_header, /fscale)                                                                     
@@ -1391,198 +1404,137 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
   ;    stop
       
     ENDFOR
-  ; now i'm going to unpack the last one just so that i can get image dimensions and put them into an array later
+  ; now i'm going to unpack one just so that i can get image dimensions and put them into an array later
     guider_img = mrdfits(guiders[0], 0, guider_header, /fscale)
     s          = size(guider_img)
+   
    
   ; now, get time stamps for spectra, convert to et AND get exposure times
     FOR j = 0, N_elements(spectra)-1 DO BEGIN
       spectra_header = headfits(spectra[j])
-      cspice_UTC2ET,   sxpar(spectra_header, 'DATE-OBS') + ' ' + sxpar(spectra_header, 'UTC'), spectra_ET
+      cspice_UTC2ET,   sxpar(spectra_header, 'DATE'), spectra_ET
       exposure       = sxpar(spectra_header, 'EXPTIME')
       exp_times      = [exp_times, exposure]
-      spectra_times  = [spectra_times, spectra_ET]
-      ;print, spectra[j] + ' ' + sxpar(spectra_header, 'DATE-OBS') + ' '+ sxpar(spectra_header, 'UTC')
+      end_times_et   = [end_times_et, spectra_ET]
+      start_times_et = [start_times_et, spectra_ET - exposure]
     ENDFOR
-  
-    START_times_et                    = spectra_times - exp_times
-    magiq_per_frame                   = fltarr(s[1], s[2], n_elements(guiders))
     
-    NSslit_locations                  = fltarr(s[1], s[2])
-    EWslit_locations                  = fltarr(s[1], s[2])
+    mid_exposure_times                = (start_times_et + end_times_et ) / 2.
     
-    slit                              = fltarr(8, 163)
+    magiq_per_frame                   = fltarr(s[1], s[2], n_elements(guiders)) + !Values.F_Nan
+    just_the_map                      = fltarr(s[1], s[2], n_elements(guiders)) + !Values.F_Nan
     
-    short                             = findgen(8)+267
-    longs                             = findgen(163)+158
-    NSslit_locations[min(short):max(short),min(longs):max(longs)] = !Values.F_Nan
-    EWslit_locations[min(longs):max(longs),min(short):max(short)] = !Values.F_Nan
-    slit_location_Juno                = ROT(NSslit_locations, 316)
-    slit_location_344                 = ROT(NSslit_locations, 350)
     
+    NSshort                           = [239., 242.]
+    EWshort                           = [236., 244.]
+    NSlongs                           = [191., 356.]
+    EWlongs                           = [191., 356.]
+    
+    ; after rotation
+    NSshort                           = [268., 275.]
+    EWshort                           = [236., 243.]
+    NSlongs                           = [158., 321.]
+    EWlongs                           = [156., 319.]
+
+    slit                              = fltarr(NSshort[1]-NSshort[0]+1., NSlongs[1]-NSlongs[0]+1.)
     slitsize                          = size(slit)
     
     
-  if filt eq 'gg475' then begin
-    FOR h = 164, 196-1 DO BEGIN ;   N_elements(start_times_et)-1 DO BEGIN   *****165 is where gg475 filt begins!
-  
-  ;;;  this next part gathers ALL magiq files for EACH spectra (aka taken within the exposure time)
-  
-       cspice_ET2UTC, start_times_et[h], "ISOC", 2, start_times
-       print, spectra[h] + ' ' + sxpar(headfits(spectra[h]), 'DATE-OBS') + ' START: '+  STRMID(start_times, 11) + '      END: '+ sxpar(headfits(spectra[h]), 'UTC')
-       print, 'has MAGIQ files..............................'
-       
-       FOR k = 0, N_elements(guider_times)-1 DO BEGIN
-        IF guider_times[k] LT spectra_times[h] AND guider_times[k] GT START_times_et[h] then begin
-          print, strmid(guiders[k],50)+ ' ' + sxpar(headfits(guiders[k]), 'DATE-OBS') + ' '+ sxpar(headfits(guiders[k]), 'UTC')+'   ', k
-  
-          magiq_per_frame[*,*,k] = mrdfits(guiders[k], 0, guider_header, /fscale)                                                           ; saves all the magiq files per spectral observation
-          print, round(sxpar(headfits(spectra[h]), 'ROTPOSN') - 90.)
-          
-          if round(sxpar(headfits(spectra[h]), 'ROTPOSN') - 90.) eq 344 then begin          ; NS Oriented
-            magiq_per_frame[*,*,k] = rotate(magiq_per_frame[*,*,k], 5)
-            magiq_per_frame[*,*,k] = rotate(magiq_per_frame[*,*,k], 1)
-          endif
-          
-          if round(sxpar(headfits(spectra[h]), 'ROTPOSN') - 90.) eq 244 then begin          ; EW Oriented
-            magiq_per_frame[*,*,k] = rotate(magiq_per_frame[*,*,k], 5)
-            magiq_per_frame[*,*,k] = rotate(magiq_per_frame[*,*,k], 2)
-          endif
-          
-          window, 0, xs=512, ys=512, title=STRMID(spectra[h], 52, 9)+' --> '+strmid(guiders[k], 50, 17)
-          cgimage, magiq_per_frame[*,*,k], minv=0.75*median(magiq_per_frame[*,*,k]), maxv=1.5*median(magiq_per_frame[*,*,k])
-          stop
-  ; let's do centroids now
-          
-          maxes = []
-          ylocs = []
-  
-          for cols = 0, s[2]-1 do begin
-            column = magiq_per_frame[*,cols,k]
-            maxes = [maxes, max(column)]
-          endfor
-          
-          centroid_loc  = max(maxes, yloc)
-          xloc = WHERE(magiq_per_frame[*,yloc,k] eq max(magiq_per_frame[*,yloc,k]))
-          
-          CNTRD, magiq_per_frame[*,*,k], xloc, yloc, xcen, ycen, 100
-          
-          if xcen[-1] eq -1. or ycen[-1] eq -1. then begin
-            magiq_per_frame[*,*,k] = fltarr(s[1], s[2])
-            continue
-          endif
-          
-          if round(sxpar(headfits(spectra[h]), 'ROTPOSN') - 90.) eq 244 then magiq_per_frame[*,*,k] = EWslit_locations   + magiq_per_frame[*,*,k] 
-          if round(sxpar(headfits(spectra[h]), 'ROTPOSN') - 90.) eq 344 then magiq_per_frame[*,*,k] = slit_location_344  + magiq_per_frame[*,*,k] 
-          
-          shift_in_x = s[1]/2. - xcen
-          shift_in_y = s[2]/2. - ycen
-          
-          magiq_per_frame[*,*,k] = shift(magiq_per_frame[*,*,k], shift_in_x, shift_in_y)
-          
-          window, 3, xs=512, ys=512, title='centroid'
-          cgimage, magiq_per_frame[*,*,k], minv=0.75*median(magiq_per_frame[*,*,k]), maxv=1.5*median(magiq_per_frame[*,*,k])
-          
-        ENDIF
-       ENDFOR
-     goodframes = []
-       layered = TOTAL(magiq_per_frame, 3)
-       window, 1, xs=512, ys=512, title='TOTALED MAGIQ FRAMES FOR THIS SPECTRUM'
-       cgimage, layered, minv=0.75*median(layered), maxv=1.5*median(layered)
-       print, '    '
-       
-    ENDFOR
-    
-    cgPS_Open, filename = dir+'\Figures\gg475_guider_map.eps', $
-      /ENCAPSULATED, xsize = 10, ysize = 10
-      !P.font=1
-      loadct, 3
-      device, SET_FONT = 'Helvetica Bold', /TT_FONT
-    
-      title = 'HIRES 2022-09-29 Slit Orientations Around Europa'
-    
-      cgimage, layered, minv=0.75*median(layered), maxv=1.5*median(layered)
-    
-    cgPS_Close
-    stop
-  endif     ; gg475 filter data
-  
-  
-    
   ;;;; this is for Na filtered data  
-  if filt eq 'Na' then begin  
-    FOR h = 136, 140-1 DO BEGIN ;129, 165-1 DO BEGIN                                                             ; these are the Na filter files
-      
-      h = h + 1                                                                             ; for ease of indexing data, i just +1'd the index so it starts from 1, not 0
-      if (h ge 130) and (h le 132) $
-      or (h ge 162) and (h le 164) then orientation = Na_new_images[*,*,5 ]                                        ;  orientations[*,*,0 ] = NS0__ 
-      if (h ge 133) and (h le 134) then orientation = Na_new_images[*,*,6 ]                                        ;  orientations[*,*,1 ] = NS10_E
-      if (h ge 135) and (h le 136) then orientation = Na_new_images[*,*,7 ]                                        ;  orientations[*,*,2 ] = NS20_E
-      if (h ge 137) and (h le 141) then orientation = Na_new_images[*,*,10]                                       ;   orientations[*,*,3 ] = NS10_W
-      if (h ge 142) and (h le 143) then orientation = Na_new_images[*,*,8 ]                                        ;  orientations[*,*,4 ] = NS20_W
-      if (h ge 144) and (h le 145) then orientation = Na_new_images[*,*,9 ]                                        ;  orientations[*,*,5 ] = EW0__ 
-      if (h ge 146) and (h le 150) $                                                                              ;
-      or (h ge 159) and (h le 161) then orientation = Na_new_images[*,*,0 ]                                        ;  orientations[*,*,6 ] = EW10_N
-      if (h ge 151) and (h le 152) then orientation = Na_new_images[*,*,3 ]                                        ;  orientations[*,*,7 ] = EW20_N
-      if (h ge 153) and (h le 154) then orientation = Na_new_images[*,*,4 ]                                        ;  orientations[*,*,8 ] = EW10_S
-      if (h ge 155) and (h le 156) then orientation = Na_new_images[*,*,1 ]                                        ;  orientations[*,*,9 ] = EW20_S
-      if (h ge 157) and (h le 158) then orientation = Na_new_images[*,*,2 ]                                        ;  if filt eq 'Na' then orientations[*,*,10] = Juno
-      h = h - 1
-      
-      slitfiller1d = total(orientation[index0:index1,*], 1, /NAN)
-      slitfiller2d = REBIN(slitfiller1d, slitsize[2], slitsize[3])
-      
-      window, 0
-      cgplot, slitfiller1d
-      window, 1
-      cgimage, slitfiller2d
-      stop
-      
-      
-      
-      cspice_ET2UTC, start_times_et[h], "ISOC", 2, start_times
-      print, spectra[h] + ' ' + sxpar(headfits(spectra[h]), 'DATE-OBS') + ' START: '+  STRMID(start_times, 11) + '      END: '+ sxpar(headfits(spectra[h]), 'UTC')
-      print, 'has MAGIQ files..............................'
-      
-      ;if (h GT 136) and (h LT 141) then continue                                           ; comment this line out if you WANT to include juno flyby data
-  
-      FOR k = 0, N_elements(guider_times)-1 DO BEGIN
-        IF guider_times[k] LT spectra_times[h] AND guider_times[k] GT START_times_et[h] then begin
-          print, strmid(guiders[k],50)+ ' ' + sxpar(headfits(guiders[k]), 'DATE-OBS') + ' '+ sxpar(headfits(guiders[k]), 'UTC')+'   ', k
+  if filt eq 'Na' then begin
+
+  FOR file = 3, 37-1 DO BEGIN                                                             ; these are the Na filter files
+    
+    
+    NSslit_locations                  = fltarr(s[1], s[2])
+    EWslit_locations                  = fltarr(s[1], s[2])
+    junoslit_shift                    = fltarr(s[1], s[2])
+    
+    slit_location_Juno                = ROT(NSslit_locations, 316)
+    slit_location_344                 = ROT(NSslit_locations, 350)
+    
+    h = STRMID(filenames[file], 78, 3)
+    
+    if (h ge 130) and (h le 132) $
+      or (h ge 162) and (h le 164) then frame = 0                                         ;  EW on disk                                                  orientations[*,*,0 ] = EW0__ 
+    if (h ge 133) and (h le 134)   then frame = 1                                         ;  EW 10 N                                                     orientations[*,*,1 ] = EW10_N
+    if (h ge 135) and (h le 136)   then frame = 2                                         ;  EW 20 N                                                     orientations[*,*,2 ] = EW20_N
+    if (h ge 137) and (h le 141)   then frame = 10                                        ;  juno                                                        orientations[*,*,3 ] = EW10_S
+    if (h ge 142) and (h le 143)   then frame = 3                                         ;  EW 10 S                                                     orientations[*,*,4 ] = EW20_S
+    if (h ge 144) and (h le 145)   then frame = 4                                         ;  EW 20 S                                                     orientations[*,*,5 ] = NS0__ 
+    if (h ge 146) and (h le 150) $                                                                                                                       orientations[*,*,6 ] = NS10_W
+      or (h ge 159) and (h le 161) then frame = 5                                         ;  NS on disk                                                  orientations[*,*,7 ] = NS20_W
+    if (h ge 151) and (h le 152)   then frame = 6                                         ;  NS 10 W                                                     orientations[*,*,8 ] = NS10_E
+    if (h ge 153) and (h le 154)   then frame = 7                                         ;  NS 20 W                                                     orientations[*,*,9 ] = NS20_E
+    if (h ge 155) and (h le 156)   then frame = 8                                         ;  NS 10 E                                                     if filt eq 'Na' then orientations[*,*,10] = Juno
+    if (h ge 157) and (h le 158)   then frame = 9                                         ;  NS 20 E
+    
+    orientation = Na_new_images[*,*,frame]
+    column      = Nacolumns[*, frame]
+    slitfiller1d = column
+    slitfiller1d = CONGRID(column, slitsize[2], slitsize[3], /interp)
+    slitfiller2d = REBIN(slitfiller1d, slitsize[2], slitsize[1])
+    if column[0] eq 0. then slitfiller2d = make_array(slitsize[2], slitsize[1], value=!Values.F_Nan)
+
+    window, 0
+    cgplot, total(slitfiller2d, 2)
+    
+    NSslit_locations[NSshort[0]:NSshort[1],NSlongs[0]:NSlongs[1]] = TRANSPOSE(slitfiller2d)
+    EWslit_locations[EWlongs[0]:EWlongs[1],EWshort[0]:EWshort[1]] = slitfiller2d
+
+    window, 2, xs=512, ys=512
+    cgimage, EWslit_locations
+
+    junoslit_shift[NSshort[0]:NSshort[1],NSlongs[0]:NSlongs[1]]     = TRANSPOSE(slitfiller2d)
+    slit_location_Juno                = ROT(junoslit_shift, 316);, (NSshort[1]+NSshort[0])/2., (NSlongs[1]+NSlongs[0])/2.)
+    slit_location_344                 = ROT(NSslit_locations, 350)
+
+    print, labels[frame]
+    
+    cspice_ET2UTC, start_times_et[file], "ISOC", 2, start_times
+    date = sxpar(headfits(spectra[file]), 'DATE')
+    print, spectra[file] + ' ' + sxpar(headfits(spectra[file]), 'DATE-OBS') + ' START: '+  STRMID(start_times, 11) + '      END: '+ STRMID(date, 11)
+    print, 'has MAGIQ files..............................'
+    cspice_str2et, date, et
+    
+    FOR k = 0, N_elements(guider_times)-1 DO BEGIN
+      IF guider_times[k] LT end_times_et[file] AND $
+         guider_times[k] GT start_times_et[file] then begin
+        print, strmid(guiders[k],50)+ ' ' + sxpar(headfits(guiders[k]), 'DATE-OBS') + ' '+ sxpar(headfits(guiders[k]), 'UTC')+'   ', k
+        
+        cspice_ET2UTC, guider_times[k], "ISOC", 2, checking
+        print, 'CHECK TIME: ' + STRMID(checking, 11)
+        
+        if k eq 158 then continue                                                              ; idk what this frame is but it's not 10 S like the log says
           
-          if k eq 158 then continue                                                         ; idk what this frame is but it's not 10 S like the log says
+          magiq_per_frame[*,*,k] = mrdfits(guiders[k], 0, guider_header, /fscale)              ; saves all the magiq files per spectral observation
+          print, round(sxpar(headfits(spectra[file]), 'ROTPOSN') - 90.)
           
-          magiq_per_frame[*,*,k] = mrdfits(guiders[k], 0, guider_header, /fscale)           ; saves all the magiq files per spectral observation
-          print, round(sxpar(headfits(spectra[h]), 'ROTPOSN') - 90.)
-          if round(sxpar(headfits(spectra[h]), 'ROTPOSN') - 90.) eq 334 then begin          ; NS Oriented
+          if round(sxpar(headfits(spectra[file]), 'ROTPOSN') - 90.) eq 334 then begin          ; NS Oriented
             magiq_per_frame[*,*,k] = rotate(magiq_per_frame[*,*,k], 5)
             magiq_per_frame[*,*,k] = rotate(magiq_per_frame[*,*,k], 1)
+            just_the_map[*,*,k]    = NSslit_locations
           endif
-          if round(sxpar(headfits(spectra[h]), 'ROTPOSN') - 90.) eq 244 then begin          ; EW Oriented
+          if round(sxpar(headfits(spectra[file]), 'ROTPOSN') - 90.) eq 244 then begin          ; EW Oriented
             magiq_per_frame[*,*,k] = rotate(magiq_per_frame[*,*,k], 5)
-            magiq_per_frame[*,*,k] = rotate(magiq_per_frame[*,*,k], 2)
+            just_the_map[*,*,k]    = EWslit_locations
           endif
-          if round(sxpar(headfits(spectra[h]), 'ROTPOSN') - 90.) eq 245 then begin          ; EW Oriented
+          if round(sxpar(headfits(spectra[file]), 'ROTPOSN') - 90.) eq 245 then begin          ; EW Oriented
             magiq_per_frame[*,*,k] = rotate(magiq_per_frame[*,*,k], 5)
-            magiq_per_frame[*,*,k] = rotate(magiq_per_frame[*,*,k], 2)
+            just_the_map[*,*,k]    = EWslit_locations
           endif
-  ;        if round(sxpar(headfits(spectra[h]), 'ROTPOSN') - 90.) eq  44 then begin          ; juno Oriented
-  ;          magiq_per_frame[*,*,k] = rotate(magiq_per_frame[*,*,k], 5)
-  ;          magiq_per_frame[*,*,k] =    ROT(magiq_per_frame[*,*,k], 44, /INTERP)
-  ;        endif
   
-          window, 0, xs=512, ys=512, title=STRMID(spectra[h], 52, 9)+' --> '+strmid(guiders[k], 50, 17)
+          window, 0, xs=512, ys=512, title=STRMID(spectra[file], 62, 9)+' --> '+strmid(guiders[k], 50, 17)
           cgimage, magiq_per_frame[*,*,k], minv=0.75*median(magiq_per_frame[*,*,k]), maxv=1.5*median(magiq_per_frame[*,*,k])
-          ;wait, 1
-  
+          
           ; let's do centroids now
   
           maxes = []
           ylocs = []
   
           for cols = 0, s[2]-1 do begin
-            column = magiq_per_frame[*,cols,k]
-            maxes = [maxes, max(column)]
+            colsd = magiq_per_frame[*,cols,k]
+            maxes = [maxes, max(colsd)]
           endfor
   
           centroid_loc  = max(maxes, yloc)
@@ -1595,28 +1547,39 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
             continue
           endif
   
-          if round(sxpar(headfits(spectra[h]), 'ROTPOSN') - 90.) eq 245 then magiq_per_frame[*,*,k] = EWslit_locations   + magiq_per_frame[*,*,k]         ; for some EW frames, we used 244.5 and some were 244
-          if round(sxpar(headfits(spectra[h]), 'ROTPOSN') - 90.) eq 244 then magiq_per_frame[*,*,k] = EWslit_locations   + magiq_per_frame[*,*,k] 
-          if round(sxpar(headfits(spectra[h]), 'ROTPOSN') - 90.) eq 334 then magiq_per_frame[*,*,k] = NSslit_locations   + magiq_per_frame[*,*,k]
-          if round(sxpar(headfits(spectra[h]), 'ROTPOSN') - 90.) eq  44 then magiq_per_frame[*,*,k] = slit_location_Juno + magiq_per_frame[*,*,k]         ; juno flyby byebye
-  
+          if round(sxpar(headfits(spectra[file]), 'ROTPOSN') - 90.) eq 245 then magiq_per_frame[*,*,k] = EWslit_locations   + magiq_per_frame[*,*,k]         ; for some EW frames, we used 244.5 and some were 244
+          if round(sxpar(headfits(spectra[file]), 'ROTPOSN') - 90.) eq 244 then magiq_per_frame[*,*,k] = EWslit_locations   + magiq_per_frame[*,*,k] 
+          if round(sxpar(headfits(spectra[file]), 'ROTPOSN') - 90.) eq 334 then magiq_per_frame[*,*,k] = NSslit_locations   + magiq_per_frame[*,*,k]
+          if round(sxpar(headfits(spectra[file]), 'ROTPOSN') - 90.) eq  44 then magiq_per_frame[*,*,k] = slit_location_Juno + magiq_per_frame[*,*,k]         ; juno flyby byebye
+          
           shift_in_x = s[1]/2. - xcen
           shift_in_y = s[2]/2. - ycen
   
           magiq_per_frame[*,*,k] = shift(magiq_per_frame[*,*,k], shift_in_x, shift_in_y)
-  
-          window, 3, xs=512, ys=512, title='centroid'
+          just_the_map[*,*,k]    = shift(just_the_map[*,*,k], shift_in_x, shift_in_y)
+          
+          window, 3, xs=512, ys=512, title='centroid ; '+labels[frame]+ '  ' + strmid(spectra[file], 77,4)
           cgimage, magiq_per_frame[*,*,k], minv=0.75*median(magiq_per_frame[*,*,k]), maxv=1.5*median(magiq_per_frame[*,*,k])
           
         ENDIF
       ENDFOR
-      goodframes = []
-      layered = TOTAL(magiq_per_frame, 3)
+      
+;      layered = median(magiq_per_frame, dim=3, /even)
+      layered = total(magiq_per_frame, 3, /nan)
+      lay_map = median(just_the_map, dim=3, /even)
+      
       window, 1, xs=512, ys=512, title='TOTALED MAGIQ FRAMES FOR THIS SPECTRUM'
-      cgimage, layered, minv=0.75*median(layered), maxv=1.5*median(layered)
+      cgimage, layered, minv=0, maxv=2.e7 ; minv=0.75*median(layered), maxv=1.5*median(layered)
+      ;cgcolorbar, POSITION=[0.7, 0.35, 0.72, 0.65], range = column, /vertical, /right, color='white'
+      
+      window, 2, xs=512, ys=512, title='JUST MAP'
+      cgimage, bytscl(lay_map);, minv=1.e5, maxv=2.e5
       print, '    '
-    ENDFOR
-    
+    endfor ; h is the number of sodium filtered spectra
+    stop
+    window, 2, title="See EW Asymmetries"
+    cgplot, total(layered, 2, /nan)
+    stop
     cgPS_Open, filename = dir+'\Figures\Na_guider_map_Juno.eps', $
         /ENCAPSULATED, xsize = 10, ysize = 10
       !P.font=1
@@ -1625,12 +1588,101 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
     
       title = 'HIRES 2022-09-29 Na filter Slit Orientations Around Europa'
     
-      cgimage, layered, minv=0.75*median(layered), maxv=1.5*median(layered)
-  
+      cgimage, layered, minv=0, maxv=2.e7;, minv=0.75*median(layered), maxv=1.5*median(layered)
+      
     cgPS_Close
     
-    stop
+    
   endif    ; Na filter data
+  stop
+  
+  
+  
+  if filt eq 'gg475' then begin
+    FOR h = 164, 196-1 DO BEGIN ;   N_elements(start_times_et)-1 DO BEGIN   *****165 is where gg475 filt begins!
+
+      ;;;  this next part gathers ALL magiq files for EACH spectra (aka taken within the exposure time)
+
+      cspice_ET2UTC, start_times_et[h], "ISOC", 2, start_times
+      print, spectra[h] + ' ' + sxpar(headfits(spectra[h]), 'DATE-OBS') + ' START: '+  STRMID(start_times, 11) + '      END: '+ sxpar(headfits(spectra[h]), 'UTC')
+      print, 'has MAGIQ files..............................'
+
+      FOR k = 0, N_elements(guider_times)-1 DO BEGIN
+        IF guider_times[k] LT spectra_times[h] AND guider_times[k] GT START_times_et[h] then begin
+          print, strmid(guiders[k],50)+ ' ' + sxpar(headfits(guiders[k]), 'DATE-OBS') + ' '+ sxpar(headfits(guiders[k]), 'UTC')+'   ', k
+
+          magiq_per_frame[*,*,k] = mrdfits(guiders[k], 0, guider_header, /fscale)                                                           ; saves all the magiq files per spectral observation
+          print, round(sxpar(headfits(spectra[h]), 'ROTPOSN') - 90.)
+
+          if round(sxpar(headfits(spectra[h]), 'ROTPOSN') - 90.) eq 344 then begin          ; NS Oriented
+            magiq_per_frame[*,*,k] = rotate(magiq_per_frame[*,*,k], 5)
+            magiq_per_frame[*,*,k] = rotate(magiq_per_frame[*,*,k], 1)
+          endif
+
+          if round(sxpar(headfits(spectra[h]), 'ROTPOSN') - 90.) eq 244 then begin          ; EW Oriented
+            magiq_per_frame[*,*,k] = rotate(magiq_per_frame[*,*,k], 5)
+            magiq_per_frame[*,*,k] = rotate(magiq_per_frame[*,*,k], 2)
+          endif
+
+          window, 0, xs=512, ys=512, title=STRMID(spectra[h], 52, 9)+' --> '+strmid(guiders[k], 50, 17)
+          cgimage, magiq_per_frame[*,*,k], minv=0.75*median(magiq_per_frame[*,*,k]), maxv=1.5*median(magiq_per_frame[*,*,k])
+          stop
+          ; let's do centroids now
+
+          maxes = []
+          ylocs = []
+
+          for cols = 0, s[2]-1 do begin
+            column = magiq_per_frame[*,cols,k]
+            maxes = [maxes, max(column)]
+          endfor
+
+          centroid_loc  = max(maxes, yloc)
+          xloc = WHERE(magiq_per_frame[*,yloc,k] eq max(magiq_per_frame[*,yloc,k]))
+
+          CNTRD, magiq_per_frame[*,*,k], xloc, yloc, xcen, ycen, 100
+
+          if xcen[-1] eq -1. or ycen[-1] eq -1. then begin
+            magiq_per_frame[*,*,k] = fltarr(s[1], s[2])
+            continue
+          endif
+
+          if round(sxpar(headfits(spectra[h]), 'ROTPOSN') - 90.) eq 244 then magiq_per_frame[*,*,k] = EWslit_locations   + magiq_per_frame[*,*,k]
+          if round(sxpar(headfits(spectra[h]), 'ROTPOSN') - 90.) eq 344 then magiq_per_frame[*,*,k] = slit_location_344  + magiq_per_frame[*,*,k]
+
+          shift_in_x = s[1]/2. - xcen
+          shift_in_y = s[2]/2. - ycen
+
+          magiq_per_frame[*,*,k] = shift(magiq_per_frame[*,*,k], shift_in_x, shift_in_y)
+
+          window, 3, xs=512, ys=512, title='centroid'
+          cgimage, magiq_per_frame[*,*,k], minv=0.75*median(magiq_per_frame[*,*,k]), maxv=1.5*median(magiq_per_frame[*,*,k])
+          stop
+        ENDIF
+      ENDFOR
+      goodframes = []
+      layered = TOTAL(magiq_per_frame, 3)
+      window, 1, xs=512, ys=512, title='TOTALED MAGIQ FRAMES FOR THIS SPECTRUM'
+      cgimage, layered, minv=0.75*median(layered), maxv=1.5*median(layered)
+      print, '    '
+      stop
+    ENDFOR
+
+    cgPS_Open, filename = dir+'\Figures\gg475_guider_map.eps', $
+      /ENCAPSULATED, xsize = 10, ysize = 10
+    !P.font=1
+    loadct, 3
+    device, SET_FONT = 'Helvetica Bold', /TT_FONT
+
+    title = 'HIRES 2022-09-29 Slit Orientations Around Europa'
+
+    cgimage, layered, minv=0.75*median(layered), maxv=1.5*median(layered)
+
+    cgPS_Close
+    stop
+  endif     ; gg475 filter data
+
+
     
     stop
     
@@ -1736,7 +1788,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
 ;    cgplot, K_Fit_Params.brightness[1, *], /overplot
 ;    cgplot, .05*mean( _10_RsubE_east_NS , dim = 1), /overplot
     
-stop
+
 ;    ENDFOR ; orientation
   
   if part eq 2 then begin ; mapping observations in grid structure, finding distance of slit from europa's disk
