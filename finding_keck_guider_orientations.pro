@@ -77,7 +77,6 @@ window, 7,  xs=512, ys=512
 tv, bytscl(testimg2)
 
 
-
 ;;; now let's test this rotation on other files. first, an EW Io frame (hires99)
 
 ;path = 'Z:\DATA\Keck\Europa Na\HIRES_20220928\just RAW data\hires0200.fits'
