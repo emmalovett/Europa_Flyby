@@ -867,7 +867,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
       
       gg475_new_images = fltarr(s[1], s[2], N_elements(labels)-1)
       Na_new_images    = fltarr(s[1], s[2], N_elements(labels))
-      Nacolumns        = fltarr(s[2], N_elements(labels))
+      Nacolumns        = fltarr(s[2], N_elements(labels)) + !Values.F_NaN
       int_Nacolumns    = fltarr(s[2], N_elements(labels))
       GGcolumns        = fltarr(s[2], N_elements(labels))
       
@@ -967,11 +967,9 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
 
           if (labels[orientation] eq 'NS on disk') or (labels[orientation] eq 'EW on disk') $
             or (labels[orientation] eq 'Juno flyby') then begin
-            if i gt 16 and i lt 28 then begin                                                         ; HACK, i'm eyeballing how many pixels i should block out based on solar subtraction
+            if i gt 34 and i lt 44 then begin                                                         ; HACK, i'm eyeballing how many pixels i should block out based on solar subtraction
               ;                if qualitymetric lt 0 or qualitymetric gt 0.001 then begin             ; sets threshold and gets rid of sunlight over disk
-          ;    totsubtrd = !values.F_nan                                                               
-
-              ;                endif
+              totsubtrd = !values.F_nan
             endif
           endif
           sunsubbed[*,i] = totsubtrd                              ; mask center region over europa's disk
@@ -980,7 +978,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
         endfor
         
         cgimage, sunsubbed[index0:index1,*]                       ; this should look spiffy. 
-        
+        stop
         
 ; ------------------------------------------------- io subtraction ------------------------------------------------------------
 ; this is me trying to subtract io cloud. first, i block out the europa emission & continuum and then interpolate over these blocked out regions.
@@ -1079,7 +1077,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
         
         window, 1, title=labels[orientation]+' Io subtracted'
         cgplot, wl[index0:index1], total(newimg[index0:index1,*], 2, /nan)
-        
+        stop
 ; ---------------------------------------------------- Na D1 line --------------------------------------------------------
         
         D1_Coeffs = fltarr(3, s[2]) & D2_Coeffs = fltarr(3, s[2])
@@ -1153,14 +1151,14 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
           guess_low        =  min(totsubtrd[LSF_fitting_ind2], minloc)
           loc              =  loc + LSF_fitting_ind2[0]
           
-          parinfo               = replicate({value:0., fixed:0, limited:[0,0], limits:[0.,0.]}, 3)
-          ;parinfo.value         = p
-          parinfo[0].limited    = [1, 1]                                                              ;
-          parinfo[0].limits     = [abs(guess_low), guess_peak]
-          parinfo[1].fixed      = 1                                                                   ;
-          parinfo[1].value      = p[1]
-          parinfo[2].fixed      = 1
-          
+;          parinfo               = replicate({value:0., fixed:0, limited:[0,0], limits:[0.,0.]}, 3)
+;          ;parinfo.value         = p
+;          parinfo[0].limited    = [1, 1]                                                              ;
+;          parinfo[0].limits     = [abs(guess_low), guess_peak]
+;          parinfo[1].fixed      = 1                                                                   ;
+;          parinfo[1].value      = p[1]
+;          parinfo[2].fixed      = 1
+;          
           case 1 of
             strmid(labels[orientation],2,1) eq '1': begin
               p = [abs(guess_peak-(median(totsubtrd[index0:index1]))), 5890.26, 0.070]                                                                 ;
@@ -1179,7 +1177,8 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
           
           y1              = totsubtrd[LSF_fitting_ind2]
           D2fa            = { x:wl[LSF_fitting_ind2], y:y1, err:5.*sqrt(abs(y1)) }
-          yfit            = mpfitpeak(D2fa.x, D2fa.y, a, nterms=3, ESTIMATES = p, PERROR = err_a)
+          yfit            = mpfitpeak(D2fa.x, D2fa.y, a, nterms=3, ESTIMATES = p, ERROR = D2fa.err, PERROR = err_a)
+          if strmid(labels[orientation],2,1) eq '1' or strmid(labels[orientation],2,1) eq '2' then a[0] = p[0]                ; noticed that gauss fits are off for off-disk observations, so i'm keeping my GUESSED amplitude over the FIT amp.
           D2_Coeffs[*, i] = a
           D2_area         = a[0] * a[2] * sqrt(2.*!pi)
           err_D2_area     = D2_area * sqrt( (err_a[0]/a[0])^2 + (err_a[2]/a[2])^2)
@@ -1189,7 +1188,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
           int_D2_emission = [int_D2_emission, D2_int]
           
           ; Inspect:
-          ;debug = 1
+;          debug = 1
           if keyword_set(debug) then begin
             window, 2, title=labels[orientation]+' D2, Row '+strcompress(i);, xs=800, ys=500
             cgplot, D2fa.x, D2fa.y, err_yhigh = D2fa.err, err_ylow = D2fa.err, $
@@ -1208,12 +1207,12 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
         ; inspect how amplitudes, line center and line width vary along the slit...
         ; iterate with the guess coefficients
 ;          debug = 1
-;          if keyword_set(debug) then begin
-;            ;plot, D2_Coeffs[2,*], yr = [0.,.1]
-;            ;print, median(D2_Coeffs[2,*])
-;          plot, mpfitD2emission
-;          stop
-;          endif
+          if keyword_set(debug) then begin
+            ;plot, D2_Coeffs[2,*], yr = [0.,.1]
+            ;print, median(D2_Coeffs[2,*])
+          plot, mpfitD2emission
+          stop
+          endif
         ; inspect things here, changing above
         
 
@@ -1246,13 +1245,22 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
         error_bars   = sqrt((D1_errors)^2.+(D2_errors)^2.)
         
         
+        area_profile[WHERE(area_profile lt 0.)] = !Values.F_NaN
+        area_profile = interpol(area_profile, WL[index0:index1], WL[index0:index1], /NAN)                           ; gets rid of the weird on-disk failed gaussian line fits
+        area_profile = area_profile[0:N_elements(Nacolumns[*,0])-1.]                                                   ; idk why the interpol function adds on a couple hundred data points...just got rid of em
+        
+        int_profile[WHERE(int_profile lt 0.)] = !Values.F_NaN
+        int_profile = interpol(int_profile, WL[index0:index1], WL[index0:index1], /NAN)                           ; gets rid of the weird on-disk failed gaussian line fits
+        int_profile = int_profile[0:N_elements(Nacolumns[*,0])-1.]                                                   ; idk why the interpol function adds on a couple hundred data points...just got rid of em
+        
+        
               window, 3
               cgplot, area_profile, title = labels[orientation], ytitle = 'Rayleighs', xr=[0,n_elements(area_profile)], xtickformat='(A1)';, yr=[0,max(collapse)], xticklen=0
               cgplot, int_profile, /overplot, color='red'
               cgaxis, xaxis = 0, xtit = 'Europa Radii', xr = yr, xstyle=1, xticklen=-0.01
               cglegend, colors=['black', 'red'], titles=['Gaussian fitted', 'Sum under data'], length=0.01, symsize=0.1, /Box, Location=[0.15, 0.70], charsize=1.0, /Background, vspace=1
 ;              save, area_profile, yr, filename= dir+'\Processed\test.sav'
-             
+;             stop
               
         ; %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% apples2apples leblanc compare %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1317,11 +1325,18 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
         GVALUE, 'Na-D', sun_europa * (10^3), distance / 1.496e8, WL_A[Na_ind-9000:Na_ind+9000], Flux[Na_ind-9000:Na_ind+9000], g_Na
         print, 'g-value for Na D1+D2 using horizons', g_na
         GVALUE,  'K-D', sun_europa * (10^3), distance / 1.496e8, WL_A[k_ind-9000:k_ind+9000], Flux[k_ind-9000:k_ind+9000], g_K
-        print,  'g-value for K D1+D2 using horizons', g_K
+        print,  'g-value for K D1+D2 using horizons', g_k
 
         column                                               = area_profile * 10.e6 / g_Na
         int_column                                           = int_profile  * 10.e6 / g_Na
-               
+        
+;        window, 0, xs=512, ys=512, title=labels[orientation]
+;        cgplot, column, /ynozero
+;        cgplot, int_column, /overplot, color='red'
+;        wait, 1
+        if max(column) gt 1.2e11 then continue                    ; getting rid of that hot pixel in orientation 32
+        
+        
         if filt eq 'Na' then Nacolumns[*, orientation]       = column
         if filt eq 'Na' then int_Nacolumns[*, orientation]   = int_column
         if filt eq 'gg475' then GGcolumns[*, orientation]    = column
@@ -1526,36 +1541,11 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
           cgPS_Close
         endif
         
-        if europa_frames[orientation] eq '0131' then begin
-;          save, /all, filename = Dir+'\Processed\'+europa_frames[orientation]+'_EWondisk_rayleighs.sav'
-          
-          EWondisk_brown = read_csv('Z:\DATA\Keck\Europa Na\HIRES_20220928\leblanc2005EW_ondisk.csv')
-          EWcolumn = EWondisk_brown.field2; * 10.e6 / g_Na
-          
-          P  = cglayout([1,1], ygap = 0., oxmargin = [10,10], oymargin = [8,5], xgap = 0.)
-        
-          cgPS_Open, filename = dir+'\Figures\leblanc05_compareEW.eps', $
-            /ENCAPSULATED, xsize = 10, ysize = 6
-          !P.font=1
-          loadct, 3
-          device, SET_FONT = 'Palatino Linotype', /TT_FONT
-        
-          title = 'Comparing Keck/HIRES 2022/09/29 to LeBlanc (2005) EW'
-          
-          cgplot, EWondisk_brown.field1, EWcolumn, psym=9, title='EW Comparison to LeBlanc et al. (2005)',ytitle='D1+D2 Emission (Rayleighs)', xtitle='Distance from Europa (Europa radii)', $
-            color='black', /ynozero, thick=3.0, xr=[min(EWondisk_brown.field1), max(EWondisk_brown.field1)]
-          cgplot, xaxis, area_profile, /overplot, color='hot pink', psym=16, symsize=1.5, /ylog, ERR_xLOW = error_bars, ERR_xHigh = error_bars
-        ;  cgplot, EWondisk_brown.field1, EW2, /overplot, color='black', psym=16, symsize=1.5
-        ;  cgplot, EWondisk_brown.field1, EW3, /overplot, color='black', psym=16, symsize=1.5
-          cglegend, colors=['black', 'hot pink'],psym=[9,16], titles=['LeBlanc et al. (2005)', 'Lovett et al. (in prep)'], length=0, symsize=1.5, /Box, Location=[0.15, 0.80], charsize=2.0, /Background, vspace=2
-          
-          cgPS_Close
-          
-        endif
-        if europa_frames[orientation] eq '132' then save, /all, filename = Dir+'\Processed\'+europa_frames[orientation]+'_EWondisk_rayleighs.sav'
-        if europa_frames[orientation] eq '146' then save, /all, filename = Dir+'\Processed\'+europa_frames[orientation]+'_NSondisk_rayleighs.sav'
-        if europa_frames[orientation] eq '147' then save, /all, filename = Dir+'\Processed\'+europa_frames[orientation]+'_NSondisk_rayleighs.sav'
-;        if europa_frames[orientation] eq 'EW10 N' then save, /all, filename = Dir+'\Processed\EW10N_rayleighs.sav'
+;        if europa_frames[orientation] eq '0132' then save, /all, filename = Dir+'\Processed\'+europa_frames[orientation]+'_EWondisk_rayleighs.sav'
+;        if europa_frames[orientation] eq '0163' then save, /all, filename = Dir+'\Processed\'+europa_frames[orientation]+'_EWondisk_rayleighs.sav'
+;        if europa_frames[orientation] eq '0164' then save, /all, filename = Dir+'\Processed\'+europa_frames[orientation]+'_EWondisk_rayleighs.sav'
+;        if europa_frames[orientation] eq '0146' then save, /all, filename = Dir+'\Processed\'+europa_frames[orientation]+'_NSondisk_rayleighs1.sav'
+;        if europa_frames[orientation] eq '0147' then save, /all, filename = Dir+'\Processed\'+europa_frames[orientation]+'_NSondisk_rayleighs2.sav'
         
         if filt eq 'gg475' then gg475_new_images[*,*,orientation] = newimg
         if filt eq 'Na'    then    Na_new_images[*,*,orientation] = newimg
@@ -1633,7 +1623,8 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
         keepindex                         = []
         FOR file = 0, N_elements(cube[0,0,*])-1 DO BEGIN
           if file eq sunspectrum then continue
-  
+          if file eq 32          then continue                                                            ; idk why there's a weird peak off-disk here, just don't use this frame whatevs
+          
           NSslit_locations                  = fltarr(s[1], s[2]) 
           EWslit_locations                  = fltarr(s[1], s[2]) 
           junoslit_shift                    = fltarr(s[1], s[2]) 
@@ -1645,16 +1636,24 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
           
           if run eq 0 then column       = Nacolumns[*, file]
           if run eq 1 then column       = int_Nacolumns[*, file]
+;          stop
+;          column[WHERE(column lt 0.)] = !Values.F_NaN
+;          column = interpol(column, WL[index0:index1], WL[index0:index1], /NAN)                           ; gets rid of the weird on-disk failed gaussian line fits
+;          column = column[0:N_elements(Nacolumns[*,0])]                                                   ; idk why the interpol function adds on a couple hundred data points...just got rid of em
           
           slitfiller1d = CONGRID(column, slitsize[2], slitsize[3], /interp)
           slitfiller2d = REBIN(slitfiller1d, slitsize[2], slitsize[1])
           if column[0] eq 0. then slitfiller2d = make_array(slitsize[2], slitsize[1], value=!Values.F_Nan)
           
-              loadct, 3
-              window, 0
-              cgplot, total(slitfiller2d, 2)
-  
-;              slitfiller2d  = fltarr(slitsize[2], slitsize[1]) +!Values.F_NaN                       ; comment this line out if you want to include col dens map
+          slitfiller2d = CONVOL(slitfiller2d, gaussian_function(2), /edge_truncate, /nan)
+          
+;              loadct, 3
+;              window, 0, xs=slitsize[2]*10., ys=slitsize[3]*10., title=labels[file]
+;              cgimage, bytscl(slitfiller2d)
+;              
+;              window, 1, xs=slitsize[2]*10., ys=slitsize[3]*10., title=labels[file]+' smoothed'
+;              cgimage, CONVOL(slitfiller2d, gaussian_function(2), /edge_truncate, /nan)
+;              stop
              
           NSslit_locations[NSshort[0]:NSshort[1],NSlongs[0]:NSlongs[1]] = TRANSPOSE(slitfiller2d)
           EWslit_locations[EWlongs[0]:EWlongs[1],EWshort[0]:EWshort[1]] = slitfiller2d
@@ -1769,7 +1768,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
         yr = [-8.*(slitsize[1]*plate_scale/ang_radius), 8.*(slitsize[1]*plate_scale/ang_radius)]      ; hack
         
         window, 2, xs=512, ys=512, title='JUST MAP'
-        cgimage, justmap, minv=0, maxv=3.e10
+        cgimage, justmap, minv=0, maxv=2.e11
         cgcolorbar, POSITION=[0.7, 0.35, 0.72, 0.65], range = [min(justmap), max(justmap)], /vertical, /right, color='white'
         cgaxis, 40., 40., color='white', /data, yaxis=0, yr = yr
         cgaxis, 40., 40., color='white', /data, xaxis=0, xr = yr
@@ -1783,8 +1782,8 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
     
           title = 'HIRES 2022-09-29 Na filter Slit Orientations Around Europa'
           ;      cgimage, layered, minv=0, maxv=5.e4
-          cgimage, justmap, minv=0, maxv=3.5e10;, minv=0.75*median(layered), maxv=1.5*median(layered)
-          cgcolorbar, POSITION=[0.7, 0.35, 0.72, 0.65], range = [0.0, max(justmap)]/1.e10, /vertical, /right, color='white', $
+          cgimage, justmap, minv=0, maxv=2.e11;, minv=0.75*median(layered), maxv=1.5*median(layered)
+          cgcolorbar, POSITION=[0.7, 0.35, 0.72, 0.65], range = [min(nacolumns), max(nacolumns)]/1.e10, /vertical, /right, color='white', $
             title='Na Column Density (x10!U10!N)', charsize=1.8
 ;          cgaxis, 0.2, 0.3, color='white', /data, yaxis=0, yr = yr
 ;          cgaxis, 0.4, 0.2, color='white', /data, xaxis=0, xr = yr
@@ -1805,7 +1804,7 @@ PRO Keck_Europa_Flyby, part = part, dir = dir, filt = filt
 
           title = 'HIRES 2022-09-29 Na filter Slit Orientations Around Europa'
           ;      cgimage, layered, minv=0, maxv=5.e4
-          cgimage, justmap, minv=0, maxv=3.5e10;, minv=0.75*median(layered), maxv=1.5*median(layered)
+          cgimage, justmap, minv=0, maxv=2.e11;, minv=0.75*median(layered), maxv=1.5*median(layered)
           cgcolorbar, POSITION=[0.7, 0.35, 0.72, 0.65], range = [min(justmap), max(justmap)]/1.e10, /vertical, /right, color='white', $
               title='Na Column Density (x10!U10!N)', charsize=1.8
           cgaxis, 40., 100., color='white', /data, yaxis=0, yr = yr
